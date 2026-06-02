@@ -1,0 +1,32 @@
+# Binaries
+bin/
+dist/
+fmg
+fmg-*
+*.exe
+*.exe~
+
+# Logs
+logs/
+*.log
+fmg.pid
+
+# Config (secrets)
+.env
+config.yaml
+
+# Go
+*.test
+*.out
+coverage.out
+coverage.html
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
