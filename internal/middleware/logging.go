@@ -10,6 +10,11 @@ import (
 func Logging(log *logrus.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+		log.WithFields(logrus.Fields{
+			"method":    c.Request.Method,
+			"path":      c.Request.URL.Path,
+			"client_ip": c.ClientIP(),
+		}).Debug("request started")
 		c.Next()
 		latency := time.Since(start)
 

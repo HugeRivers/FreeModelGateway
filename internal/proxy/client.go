@@ -19,6 +19,7 @@ func NewHTTPClient(connectTimeout, readTimeout time.Duration) *http.Client {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
 		DisableKeepAlives:     false,
 		ForceAttemptHTTP2:     true,
 	}

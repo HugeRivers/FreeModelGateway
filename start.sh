@@ -1,15 +1,13 @@
 #!/bin/bash
-# ============================================================
-#  Free Model Gateway (FMG) - One-click launch script
-#  Usage: ./start.sh [--dev] [--check] [--stop]
-# ============================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${SCRIPT_DIR}/config.yaml"
+FMG_HOME="${HOME}/.fmg"
+CONFIG_FILE="${FMG_HOME}/config.yaml"
+ENV_FILE="${FMG_HOME}/.env"
 BINARY="${SCRIPT_DIR}/bin/fmg"
-PID_FILE="${SCRIPT_DIR}/fmg.pid"
-LOG_FILE="${SCRIPT_DIR}/logs/fmg.log"
+PID_FILE="${FMG_HOME}/fmg.pid"
+LOG_DIR="${FMG_HOME}/logs"
 
 MODE="production"
 ACTION="start"
@@ -46,6 +44,22 @@ print_banner() {
     echo -e "${NC}"
 }
 
+ensure_home() {
+    mkdir -p "${FMG_HOME}/logs"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        if [ -f "${SCRIPT_DIR}/config.example.yaml" ]; then
+            cp "${SCRIPT_DIR}/config.example.yaml" "$CONFIG_FILE"
+            log_info "Created config: ${CONFIG_FILE}"
+        fi
+    fi
+    if [ ! -f "$ENV_FILE" ]; then
+        if [ -f "${SCRIPT_DIR}/.env.example" ]; then
+            cp "${SCRIPT_DIR}/.env.example" "$ENV_FILE"
+            log_info "Created env: ${ENV_FILE}"
+        fi
+    fi
+}
+
 stop_instance() {
     if [ ! -f "$PID_FILE" ]; then
         log_warn "No running instance found (PID file missing)"
@@ -80,7 +94,7 @@ check_environment() {
 
     if [ ! -f "$BINARY" ]; then
         log_error "Binary not found: ${BINARY}"
-        log_warn "Run: make build   OR   go build -o bin/fmg ./cmd/fmg/"
+        log_warn "Run: make build"
         has_error=1
     else
         local version
@@ -88,52 +102,46 @@ check_environment() {
         log_info "Binary: ${GREEN}${BINARY}${NC} (${version})"
     fi
 
+    ensure_home
+
     if [ ! -f "$CONFIG_FILE" ]; then
         log_error "Config not found: ${CONFIG_FILE}"
-        log_warn "Run: cp config.example.yaml config.yaml"
         has_error=1
     else
         log_info "Config: ${GREEN}${CONFIG_FILE}${NC}"
-        if [ ! -s "$CONFIG_FILE" ]; then
-            log_error "Config is empty!"
-            has_error=1
-        fi
     fi
 
-    mkdir -p "$(dirname "$LOG_FILE")"
+    if [ ! -f "$ENV_FILE" ]; then
+        log_warn "Env file not found: ${ENV_FILE}"
+    else
+        log_info "Env: ${GREEN}${ENV_FILE}${NC}"
+    fi
 
     echo ""
     log_step "===== API Key Check ====="
-    declare -A KEY_MAP=(
-        ["OPENCODE_API_KEY"]="OpenCode Zen"
-        ["OPENROUTER_API_KEY"]="OpenRouter"
-        ["AIHUBMIX_API_KEY"]="AIHubMix"
-        ["KILO_API_KEY"]="Kilo Gateway"
-        ["ZENMUX_API_KEY"]="ZenMux"
-    )
     local key_count=0
-    for env_var in "${!KEY_MAP[@]}"; do
-        if [ -n "${!env_var:-}" ]; then
-            log_info "${KEY_MAP[$env_var]}: ${GREEN}set${NC}"
+    check_key() {
+        local name="$1" var="$2"
+        if [ -n "${!var:-}" ]; then
+            log_info "${name}: ${GREEN}set${NC}"
             key_count=$((key_count + 1))
         else
-            log_warn "${KEY_MAP[$env_var]}: env ${env_var} not set"
+            log_warn "${name}: env ${var} not set"
         fi
-    done
+    }
+    check_key "OpenCode Zen" "OPENCODE_API_KEY"
+    check_key "OpenRouter" "OPENROUTER_API_KEY"
+    check_key "AIHubMix" "AIHUBMIX_API_KEY"
+    check_key "ZenMux" "ZENMUX_API_KEY"
     echo ""
     if [ "$key_count" -eq 0 ]; then
         log_error "No API keys set; gateway will have no usable models."
-        log_warn "Set env vars or create .env:"
-        echo "  cat > ${SCRIPT_DIR}/.env << 'EOF'"
-        for env_var in "${!KEY_MAP[@]}"; do
-            echo "export ${env_var}=your-key-here"
-        done
-        echo "EOF"
+        log_warn "Edit ${ENV_FILE} and add your API keys."
         has_error=1
-    elif [ "$key_count" -lt 3 ]; then
-        log_warn "Only ${key_count}/5 providers have keys; some models will be unavailable"
+    elif [ "$key_count" -lt 2 ]; then
+        log_warn "Only ${key_count}/4 providers have keys; some models will be unavailable"
     else
-        log_info "Set ${key_count}/5 provider keys"
+        log_info "Set ${key_count}/4 provider keys"
     fi
 
     echo ""
@@ -151,17 +159,6 @@ check_environment() {
         log_info "Port ${PORT}: (skipped, lsof not available)"
     fi
     return $has_error
-}
-
-load_env_file() {
-    local env_file="${SCRIPT_DIR}/.env"
-    if [ -f "$env_file" ]; then
-        log_info "Loading .env file: ${env_file}"
-        set -a
-        # shellcheck source=/dev/null
-        source "$env_file"
-        set +a
-    fi
 }
 
 start_service() {
@@ -188,9 +185,8 @@ start_service() {
     echo ""
     log_step "===== Starting Free Model Gateway ====="
     echo ""
-    "$BINARY" "${args[@]}" >> "$LOG_FILE" 2>&1 &
+    "$BINARY" "${args[@]}" >/dev/null 2>&1 &
     local pid=$!
-    echo "$pid" > "$PID_FILE"
     sleep 1
     if ps -p "$pid" > /dev/null 2>&1; then
         echo ""
@@ -198,37 +194,29 @@ start_service() {
         echo -e "${GREEN}${BOLD}FMG started successfully!${NC}"
         echo ""
         echo -e "  Process ID:    ${CYAN}${pid}${NC}"
+        echo -e "  Config:        ${CYAN}${CONFIG_FILE}${NC}"
+        echo -e "  Log dir:       ${CYAN}${LOG_DIR}${NC}"
         echo -e "  Listen addr:   ${CYAN}http://localhost:10086${NC}"
+        echo -e "  Dashboard:     ${CYAN}http://localhost:10086/${NC}"
         echo -e "  API endpoint:  ${CYAN}http://localhost:10086/v1/chat/completions${NC}"
-        echo -e "  Models list:   ${CYAN}http://localhost:10086/v1/models${NC}"
-        echo -e "  Health:        ${CYAN}http://localhost:10086/health${NC}"
-        echo -e "  Stats:         ${CYAN}http://localhost:10086/stats${NC}"
-        echo -e "  Log file:      ${CYAN}${LOG_FILE}${NC}"
-        echo -e "  PID file:      ${CYAN}${PID_FILE}${NC}"
         echo ""
         echo -e "  ${BOLD}Common commands:${NC}"
-        echo -e "    Tail logs:   ${CYAN}tail -f ${LOG_FILE}${NC}"
+        echo -e "    Tail logs:   ${CYAN}tail -f ${LOG_DIR}/fmg-$(date +%Y-%m-%d).log${NC}"
         echo -e "    Stop:        ${CYAN}$0 --stop${NC}"
         echo -e "    Restart:     ${CYAN}$0 --stop && $0${NC}"
-        echo -e "    Test:        ${CYAN}curl http://localhost:10086/health${NC}"
         echo ""
         if command -v open >/dev/null 2>&1; then
             sleep 1
-            open "http://localhost:10086/health" 2>/dev/null || true
-        elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "http://localhost:10086/health" 2>/dev/null || true
+            open "http://localhost:10086/" 2>/dev/null || true
         fi
     else
-        log_error "Startup failed; tail of log:"
-        echo ""
-        tail -20 "$LOG_FILE" 2>/dev/null || echo "(no log output)"
+        log_error "Startup failed"
         exit 1
     fi
 }
 
 main() {
     print_banner
-    load_env_file
     case "$ACTION" in
         stop) stop_instance; exit 0 ;;
         check)

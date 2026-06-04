@@ -5,7 +5,7 @@ GO_VERSION  := $(shell go version | awk '{print $$3}')
 
 LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GoVersion=$(GO_VERSION)"
 
-.PHONY: all build build-linux build-darwin build-darwin-intel build-windows build-all run test test-coverage lint clean docker docker-run dist package install uninstall init dev check help
+.PHONY: all build build-linux build-darwin build-darwin-intel build-windows build-tray build-all run test test-coverage lint clean docker docker-run dist package package-darwin install uninstall init dev check help
 
 all: build
 
@@ -29,7 +29,7 @@ build-windows:
 build-all: build-linux build-darwin build-darwin-intel build-windows
 
 run: build
-	./bin/$(BINARY_NAME) -c config.yaml
+	./bin/$(BINARY_NAME)
 
 test:
 	go test -v -race -count=1 ./...
@@ -66,11 +66,19 @@ dist:
 package:
 	@./build.sh --release
 
+build-tray:
+	@echo "Building tray app $(VERSION)..."
+	@CGO_ENABLED=1 go build $(LDFLAGS) -o bin/fmg-tray ./cmd/tray/
+	@echo "  -> bin/fmg-tray $$(du -h bin/fmg-tray | cut -f1)"
+
+package-darwin:
+	@./package-darwin.sh
+
 install: build
-	@echo "Installing to /usr/local/bin/..."
+	@echo "Installing to /usr/local/bin..."
 	@sudo cp bin/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
 	@sudo chmod +x /usr/local/bin/$(BINARY_NAME)
-	@echo "Installed. Run: fmg -c ~/config.yaml"
+	@echo "Installed. Run: fmg"
 
 uninstall:
 	@sudo rm -f /usr/local/bin/$(BINARY_NAME)
@@ -91,13 +99,15 @@ help:
 	@echo ""
 	@echo "  make build          Build for current platform"
 	@echo "  make build-all      Cross-compile for linux/darwin/windows"
-	@echo "  make run            Build and run with config.yaml"
+	@echo "  make build-tray     Build macOS tray app"
+	@echo "  make run            Build and run"
 	@echo "  make test           Run unit tests with race detector"
 	@echo "  make lint           Run golangci-lint"
 	@echo "  make docker         Build Docker image"
 	@echo "  make docker-run     Run Docker container (port 10086)"
 	@echo "  make dist           Cross-compile via build.sh"
-	@echo "  make package        Cross-compile + zip"
+	@echo "  make package        Cross-compile + zip for all platforms"
+	@echo "  make package-darwin Build macOS .pkg + .dmg installer"
 	@echo "  make init           Create .env and config.yaml from templates"
 	@echo "  make dev            Build + start in dev mode (debug logs)"
 	@echo "  make check          Check environment readiness"

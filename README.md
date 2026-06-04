@@ -65,31 +65,60 @@ flowchart TB
 ```bash
 make build              # 当前平台
 make build-all          # 全平台交叉编译
+make package-darwin     # macOS .pkg + .dmg (含状态栏图标)
 ```
 
 ### 2. 准备配置
 
+所有配置文件自动存放在用户目录 `~/.fmg/` 下：
+
+```
+~/.fmg/
+├── config.yaml          # 网关配置
+├── .env                 # API Keys
+├── data.db              # SQLite 持久化数据
+├── logs/
+│   └── fmg-YYYY-MM-DD.log   # 日志文件（自动滚动，保留最近一天）
+└── fmg.pid              # 进程 PID
+```
+
+首次运行会自动创建目录和模板文件：
+
 ```bash
-make init               # 创建 .env 和 config.yaml
-# 或手动:
-cp .env.example .env
-cp config.example.yaml config.yaml
-vim .env                # 填入 API Key
+./bin/fmg               # 自动初始化 ~/.fmg/ 目录
+# 或
+make run                # 构建并启动
+```
+
+手动准备：
+```bash
+mkdir -p ~/.fmg
+cp config.example.yaml ~/.fmg/config.yaml
+cp .env.example ~/.fmg/.env
+vim ~/.fmg/.env         # 填入 API Key
 ```
 
 ### 3. 启动
 
+**macOS App（推荐）**
+- 安装 `.dmg` 中的 `Free Model Gateway.app` 到 Applications
+- 双击启动，状态栏显示图标
+- 点击图标可：打开 Dashboard / 启动服务 / 停止服务 / 重启服务 / 退出
+
+**CLI**
 ```bash
 ./start.sh              # macOS / Linux
-# 或双击 启动网关.command   (macOS)
-# 或双击 启动网关.bat       (Windows)
+# 或
+./bin/fmg               # 直接启动（使用 ~/.fmg/config.yaml）
 ```
 
-启动后自动打开 `http://localhost:10086/health`。
+启动后自动打开 `http://localhost:10086/`。
 
 ---
 
 ## 配置说明 (Configuration)
+
+配置文件默认读取 `~/.fmg/config.yaml`，可用 `-c` 指定其他路径。
 
 完整配置模板见 [`config.example.yaml`](./config.example.yaml)。
 
@@ -296,7 +325,7 @@ Settings → Models:
 ## 命令行参数 (CLI)
 
 ```bash
-fmg -c config.yaml                # 默认启动
+fmg                                # 默认启动（自动使用 ~/.fmg/config.yaml）
 fmg --list-models                 # 列出已配置模型
 fmg --validate-config             # 校验配置
 fmg --port 10086                  # 覆盖监听端口
@@ -310,15 +339,37 @@ fmg --version                     # 打印版本
 
 ## 构建与发布 (Build & Distribute)
 
+### CLI 二进制
+
 ```bash
-make build         # 当前平台
-make build-all     # 交叉编译 linux/darwin/windows
-make docker        # Docker 镜像
-make docker-run    # 启动容器（端口 10086）
-./build.sh --release  # 全平台 + 打包 zip
+make build              # 当前平台
+make build-all          # 交叉编译 linux/darwin/windows
+make install            # 安装到 /usr/local/bin
 ```
 
-发布产物在 `dist/` 目录，每个平台一个子目录，含 `fmg` / `config.yaml` / `start.sh` / `.env.example`。
+### macOS App（含状态栏图标）
+
+```bash
+make build-tray         # 构建状态栏应用
+make package-darwin     # 构建 .pkg + .dmg
+```
+
+产物：
+- `dist/fmg-*-macos.pkg` — 安装包（安装 CLI 到 /usr/local/bin）
+- `dist/fmg-*-macos.dmg` — 磁盘映像（含 Free Model Gateway.app）
+
+App 功能：
+- 状态栏图标（🟢 运行中 / ⚪ 已停止）
+- 点击图标打开 Dashboard
+- 启动 / 停止 / 重启 服务
+- 自动初始化 `~/.fmg/` 目录
+
+### Docker
+
+```bash
+make docker             # Docker 镜像
+make docker-run         # 启动容器（端口 10086）
+```
 
 ---
 
@@ -327,11 +378,11 @@ make docker-run    # 启动容器（端口 10086）
 | 问题 | 解决方案 |
 |------|----------|
 | 端口 10086 被占用 | `lsof -i :10086` 找到占用进程；或 `fmg --port 10087` |
-| API Key 未设置 | 检查 `.env` 文件，确认 `export XXX_API_KEY=...` |
+| API Key 未设置 | 检查 `~/.fmg/.env` 文件，填入 `XXX_API_KEY=...` |
 | 大量模型进入 cooldown | 等待 5min 自动恢复；或 `POST /admin/recover` 立即恢复 |
 | 流式无响应 | 检查上游是否支持 SSE；`read_timeout_s: 0` 设为无限等待 |
 | Config 格式错误 | `fmg --validate-config` 看具体错误 |
-| 启动失败 | `tail -f logs/fmg.log` 查看结构化日志 |
+| 启动失败 | `tail -f ~/.fmg/logs/fmg-$(date +%Y-%m-%d).log` 查看结构化日志 |
 | 切换路由策略 | 修改 `config.yaml` 的 `strategy.mode`，然后 `kill -HUP <pid>` |
 
 ---
@@ -385,7 +436,7 @@ go mod verify    # 校验 go.sum 完整性
    - **Package path**: `github.com/free-model-gateway/fmg/cmd/fmg`
    - **Working directory**: 项目根目录
    - **Environment**: 通过 EnvFile 插件加载 `.env`，或在 `Environment variables` 直接填
-3. **Program arguments**（可选）：`-c config.yaml -l debug`
+3. **Program arguments**（可选）：`-l debug`
 4. 点击 ▶ 即可运行；点击 🐞 即可断点调试
 
 **调试 GoLand**：
@@ -400,7 +451,7 @@ go mod verify    # 校验 go.sum 完整性
 ```bash
 # 1. 启动 fmg（不带 -s -w 以保留符号表，便于调试）
 go build -o bin/fmg ./cmd/fmg/
-./bin/fmg -c config.yaml -l debug
+./bin/fmg -l debug
 
 # 2. 找到 PID
 pgrep fmg
@@ -435,8 +486,8 @@ pgrep fmg
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/fmg",
-      "args": ["-c", "config.yaml", "-l", "debug"],
-      "envFile": "${workspaceFolder}/.env"
+      "args": ["-l", "debug"],
+      "envFile": "${env:HOME}/.fmg/.env"
     },
     {
       "name": "Attach to fmg",
@@ -526,7 +577,7 @@ tail -f logs/fmg.log | jq 'select(.status>=400)'
 go install github.com/go-delve/delve/cmd/dlv@latest
 
 # 调试 main
-dlv debug ./cmd/fmg/ -- -c config.yaml
+dlv debug ./cmd/fmg/
 
 # 附加到运行中进程
 dlv attach $(pgrep fmg)

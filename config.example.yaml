@@ -216,40 +216,7 @@ providers:
         context_window: 1048576
         output_limit: 131072
 
-  # ====== P3: Kilo Gateway ======
-  - id: kilo-gateway
-    name: "Kilo Gateway"
-    base_url: "https://api.kilo.ai/api/gateway/"
-    api_key_env: "KILO_API_KEY"
-    priority: 40
-    weight: 3
-    models:
-      - id: kilo-auto/free
-        name: "Kilo Auto Free"
-        context_window: 204800
-        output_limit: 131072
-      - id: nvidia/nemotron-3-super-120b-a12b:free
-        name: "Nemotron 3 Super Free (Kilo)"
-        context_window: 262144
-        output_limit: 262144
-      - id: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-        name: "Nemotron 3 Nano Omni Free (Kilo)"
-        context_window: 256000
-        output_limit: 65536
-      - id: baidu/cobuddy:free
-        name: "Baidu CoBuddy Free"
-        context_window: 131072
-        output_limit: 65536
-      - id: poolside/laguna-m.1:free
-        name: "Poolside Laguna M.1 Free (Kilo)"
-        context_window: 131072
-        output_limit: 8192
-      - id: poolside/laguna-xs.2:free
-        name: "Poolside Laguna XS.2 Free (Kilo)"
-        context_window: 131072
-        output_limit: 8192
-
-  # ====== P4: ZenMux ======
+  # ====== P3: ZenMux ======
   - id: zenmux
     name: "ZenMux"
     base_url: "https://zenmux.ai/api/v1/chat/completions"

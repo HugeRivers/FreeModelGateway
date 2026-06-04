@@ -37,9 +37,8 @@ func NewPool(cfgs []config.ProviderConfig) (*Pool, error) {
 			p.index[bm.Key()] = bm
 		}
 	}
-	if len(p.models) == 0 {
-		return nil, fmt.Errorf("no models could be loaded (all providers have empty API keys)")
-	}
+	// An empty pool is allowed — the gateway will start and the dashboard
+	// will prompt the user to configure API keys via Settings, then Reload.
 	return p, nil
 }
 
@@ -176,7 +175,12 @@ func (p *Pool) Replace(newCfgs []config.ProviderConfig) error {
 	}
 
 	if len(newModels) == 0 {
-		return fmt.Errorf("hot reload resulted in zero models; aborting to preserve old pool")
+		// No models after reload is allowed — the user may still be
+		// configuring API keys. Wipe the pool so the dashboard warning
+		// reflects the current state.
+		p.models = newModels
+		p.index = newIndex
+		return nil
 	}
 	p.models = newModels
 	p.index = newIndex

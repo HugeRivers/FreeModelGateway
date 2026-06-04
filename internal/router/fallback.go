@@ -61,29 +61,48 @@ func (r *Router) Route(ctx context.Context, req *Request) (*Result, error) {
 			break
 		}
 
-		selected, err := r.strategy.Select(ctx, filtered, req)
-		if err != nil {
-			// 策略层报无可用候选（priority 模式下很罕见，但理论上可能）。
-			// 视为终态，不再重试
-			if errors.Is(err, ErrNoCandidate) {
+		var selected *model.BackendModel
+		forcedKey := r.ForcedModelKey()
+		if forcedKey != "" {
+			for _, c := range filtered {
+				if c.Key() == forcedKey {
+					selected = c
+					break
+				}
+			}
+		}
+		if selected == nil {
+			var selErr error
+			selected, selErr = r.strategy.Select(ctx, filtered, req)
+			if selErr != nil {
+				if errors.Is(selErr, ErrNoCandidate) {
+					break
+				}
 				break
 			}
-			break
 		}
 		tried = append(tried, selected)
 		chain = append(chain, selected.ProviderName+"/"+selected.ModelID)
 
 		start := time.Now()
 		result, err := r.forwarder.Forward(ctx, selected, req.RawBody)
+		latency := time.Since(start)
 		if err == nil && result != nil {
 			// 成功路径。FallbackChain 不含自己（语义是"我从哪 fallback 过来的"）
+			r.RecordLastUsed(selected.ProviderID, selected.ModelID, selected.ModelName)
+			var inTok, outTok int64
+			if result.Usage != nil {
+				inTok = int64(result.Usage.PromptTokens)
+				outTok = int64(result.Usage.CompletionTokens)
+			}
+			r.stats.Record(selected.ProviderID, selected.ModelID, true, inTok, outTok, latency.Milliseconds(), "")
 			return &Result{
 				Success:       true,
 				Response:      result.Body,
 				Model:         selected,
 				FallbackChain: chain[:len(chain)-1],
 				Retries:       attempt,
-				Latency:       time.Since(start),
+				Latency:       latency,
 				Usage:         result.Usage,
 			}, nil
 		}
@@ -105,6 +124,7 @@ func (r *Router) Route(ctx context.Context, req *Request) (*Result, error) {
 		// 标记 MarkFailure 是为了让该 backend 的 stats 反映"曾被拒绝"
 		if proxy.IsClientError(status) {
 			selected.MarkFailure(fmt.Sprintf("client_error_%d: %s", status, errMsg))
+			r.stats.Record(selected.ProviderID, selected.ModelID, false, 0, 0, latency.Milliseconds(), errMsg)
 			return &Result{
 				Success:       false,
 				Model:         selected,
@@ -126,12 +146,14 @@ func (r *Router) Route(ctx context.Context, req *Request) (*Result, error) {
 				r.cooldownMgr.EnterCooldown(selected, "consecutive errors")
 			}
 		}
+		r.stats.Record(selected.ProviderID, selected.ModelID, false, 0, 0, latency.Milliseconds(), errMsg)
 
 		// 退避：等到 retryDelay 或 ctx 取消
 		if attempt < r.maxRetries {
 			select {
 			case <-time.After(r.retryDelay):
 			case <-ctx.Done():
+				r.stats.Record(selected.ProviderID, selected.ModelID, false, 0, 0, latency.Milliseconds(), ctx.Err().Error())
 				return &Result{Success: false, Error: ctx.Err()}, nil
 			}
 		}
@@ -186,22 +208,39 @@ func (r *Router) RouteStream(ctx context.Context, req *Request, w http.ResponseW
 			return nil, ErrNoCandidate
 		}
 
-		selected, err := r.strategy.Select(ctx, filtered, req)
-		if err != nil {
-			return nil, err
+		var sel *model.BackendModel
+		forcedKey := r.ForcedModelKey()
+		if forcedKey != "" {
+			for _, c := range filtered {
+				if c.Key() == forcedKey {
+					sel = c
+					break
+				}
+			}
 		}
+		if sel == nil {
+			var selErr error
+			sel, selErr = r.strategy.Select(ctx, filtered, req)
+			if selErr != nil {
+				return nil, selErr
+			}
+		}
+		selected := sel
 		tried = append(tried, selected)
 		chain = append(chain, selected.ProviderName+"/"+selected.ModelID)
 
 		start := time.Now()
 		streamErr := r.forwarder.ForwardStream(ctx, selected, req.RawBody, w, flusher)
+		latency := time.Since(start)
 		if streamErr == nil {
+			r.RecordLastUsed(selected.ProviderID, selected.ModelID, selected.ModelName)
+			r.stats.Record(selected.ProviderID, selected.ModelID, true, 0, 0, latency.Milliseconds(), "")
 			return &Result{
 				Success:       true,
 				Model:         selected,
 				FallbackChain: chain[:len(chain)-1],
 				Retries:       attempt,
-				Latency:       time.Since(start),
+				Latency:       latency,
 			}, nil
 		}
 
@@ -214,6 +253,7 @@ func (r *Router) RouteStream(ctx context.Context, req *Request, w http.ResponseW
 		// [分支 1] 流式 4xx 同样不可重试（直接终止，让 gin 框架返回 502）
 		if proxy.IsClientError(status) {
 			selected.MarkFailure("client error during stream")
+			r.stats.Record(selected.ProviderID, selected.ModelID, false, 0, 0, latency.Milliseconds(), streamErr.Error())
 			return &Result{
 				Success:       false,
 				Model:         selected,
@@ -233,6 +273,7 @@ func (r *Router) RouteStream(ctx context.Context, req *Request, w http.ResponseW
 				r.cooldownMgr.EnterCooldown(selected, "consecutive errors")
 			}
 		}
+		r.stats.Record(selected.ProviderID, selected.ModelID, false, 0, 0, latency.Milliseconds(), streamErr.Error())
 
 		if attempt < r.maxRetries {
 			select {

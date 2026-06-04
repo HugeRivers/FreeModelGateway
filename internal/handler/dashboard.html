@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FMG Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --orange: #f0883e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Ubuntu,sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; font-size: 14px; }
+  .container { max-width: 1440px; margin: 0 auto; padding: 16px; }
+
+  /* Nav */
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .nav h1 { font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .nav h1 span { color: var(--blue); }
+  .nav .info { font-size: 12px; color: var(--text2); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .nav .info .badge { background: var(--card); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab { background: transparent; border: none; color: var(--text2); padding: 10px 18px; cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* Status Cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card .label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; }
+  .card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .card .sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .c-green .value { color: var(--green); }
+  .c-yellow .value { color: var(--yellow); }
+  .c-red .value { color: var(--red); }
+  .c-blue .value { color: var(--blue); }
+  .c-purple .value { color: var(--purple); }
+  .c-orange .value { color: var(--orange); }
+
+  /* Provider Summary */
+  .providers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .provider-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .provider-card .name { font-weight: 500; }
+  .provider-card .meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .provider-card .counts { text-align: right; font-size: 13px; }
+  .provider-card .counts .ok { color: var(--green); }
+  .provider-card .counts .cold { color: var(--yellow); }
+
+  /* Section */
+  .section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title .count { font-size: 12px; color: var(--text2); font-weight: 400; }
+
+  /* Filters */
+  .filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filters button { background: var(--card); border: 1px solid var(--border); color: var(--text2); padding: 4px 12px; border-radius: 20px; cursor: pointer; font-size: 12px; transition: all .15s; }
+  .filters button:hover { border-color: var(--blue); color: var(--text); }
+  .filters button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 500; white-space: nowrap; cursor: pointer; user-select: none; position: relative; }
+  th:hover { color: var(--text); }
+  th .sort { margin-left: 4px; opacity: .4; }
+  th.sorted .sort { opacity: 1; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+
+  /* Status badge */
+  .status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+  .status.healthy { background: rgba(63,185,80,.15); color: var(--green); }
+  .status.healthy::before { background: var(--green); }
+  .status.cooldown { background: rgba(210,153,34,.15); color: var(--yellow); }
+  .status.cooldown::before { background: var(--yellow); }
+  .status.exhausted { background: rgba(248,81,73,.15); color: var(--red); }
+  .status.exhausted::before { background: var(--red); }
+
+  .provider-tag { font-size: 11px; color: var(--text2); }
+  .model-id { font-family: 'SF Mono',Menlo,monospace; font-size: 12px; color: var(--blue); }
+  .model-name { font-size: 12px; color: var(--text2); display: block; }
+  .latency { font-variant-numeric: tabular-nums; }
+  .tokens { font-variant-numeric: tabular-nums; color: var(--text2); }
+
+  /* Action buttons */
+  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); transition: all .15s; }
+  .btn:hover { border-color: var(--blue); color: var(--blue); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; border-color: var(--border); color: var(--text2); }
+  .btn-recover { border-color: var(--yellow); color: var(--yellow); }
+  .btn-recover:hover { background: rgba(210,153,34,.1); }
+  .btn-use { border-color: var(--blue); color: var(--blue); }
+  .btn-use:hover { background: rgba(88,166,255,.1); }
+  .btn-use.active { background: var(--blue); color: #fff; }
+  .btn-auto { border-color: var(--green); color: var(--green); }
+  .btn-auto:hover { background: rgba(63,185,80,.1); }
+  .btn-save { border-color: var(--green); color: var(--green); padding: 6px 16px; font-weight: 500; }
+  .btn-save:hover { background: rgba(63,185,80,.1); }
+  .btn-save.dirty { border-color: var(--orange); color: var(--orange); }
+  .btn-loading { position: relative; pointer-events: none; opacity: .7; }
+  .btn-loading::after { content: ''; display: inline-block; width: 10px; height: 10px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; margin-left: 4px; }
+
+  /* Loading / Error */
+  .loading { text-align: center; padding: 40px; color: var(--text2); }
+  .spinner { display: inline-block; width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error { text-align: center; padding: 40px; color: var(--red); }
+  .toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 20px; border-radius: 6px; font-size: 13px; z-index: 999; opacity: 0; transform: translateY(10px); transition: all .3s; max-width: 420px; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { background: rgba(63,185,80,.2); border: 1px solid var(--green); color: var(--green); }
+  .toast.error { background: rgba(248,81,73,.2); border: 1px solid var(--red); color: var(--red); }
+  .toast.warn { background: rgba(210,153,34,.2); border: 1px solid var(--yellow); color: var(--yellow); }
+
+  /* Search */
+  .search { padding: 6px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: 240px; }
+  .search::placeholder { color: var(--text2); }
+  .search:focus { outline: none; border-color: var(--blue); }
+
+  /* Settings editor */
+  .editor { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .editor-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .editor-path { font-family: 'SF Mono',Menlo,monospace; font-size: 12px; color: var(--text2); background: var(--card); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; }
+  .editor-area { width: 100%; min-height: 360px; background: #0a0d12; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'SF Mono',Menlo,Consolas,monospace; font-size: 12.5px; line-height: 1.55; resize: vertical; tab-size: 2; }
+  .editor-area:focus { outline: none; border-color: var(--blue); }
+  .editor-area.dirty { border-color: var(--orange); }
+  .editor-meta { font-size: 11px; color: var(--text2); display: flex; gap: 12px; align-items: center; }
+  .editor-meta .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .editor-meta .dot.clean { background: var(--green); }
+  .editor-meta .dot.dirty { background: var(--orange); }
+
+  /* Restart banner */
+  .restart-banner { background: rgba(240,136,62,.1); border: 1px solid var(--orange); color: var(--orange); padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  .restart-banner.hidden { display: none; }
+  .restart-banner .grow { flex: 1; }
+
+  /* Help popover */
+  .help-btn { display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s; }
+  .help-btn:hover { border-color:var(--blue);color:var(--blue);background:rgba(88,166,255,.08); }
+  .help-popover { position:absolute;top:100%;right:0;margin-top:8px;width:340px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .help-popover.hidden { display:none; }
+  .help-popover-title { font-weight:600;font-size:13px;margin-bottom:10px; }
+  .help-popover table { width:100%;border-collapse:collapse;font-size:12px; }
+  .help-popover td { padding:6px 4px;border-bottom:1px solid var(--border);vertical-align:top; }
+  .help-popover tr:last-child td { border-bottom:none; }
+  .help-popover td:first-child { color:var(--blue);white-space:nowrap;padding-right:10px;font-family:'SF Mono',Menlo,monospace; }
+  .help-popover td:last-child { color:var(--text2); }
+  .help-popover a { color:var(--blue);text-decoration:none; }
+  .help-popover a:hover { text-decoration:underline; }
+
+  /* Client usage cards */
+  .usage { background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden; }
+  .usage-header { display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none;transition:background .15s; }
+  .usage-header:hover { background:rgba(255,255,255,.03); }
+  .usage-header .icon { width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:16px; }
+  .usage-header .name { font-weight:600;font-size:13px;flex:1; }
+  .usage-header .arrow { color:var(--text2);font-size:12px;transition:transform .2s; }
+  .usage-header .arrow.open { transform:rotate(90deg); }
+  .usage-body { padding:0 16px 16px;font-size:12px;line-height:1.6;color:var(--text2); }
+  .usage-body.hidden { display:none; }
+  .usage-body code { background:rgba(255,255,255,.06);padding:2px 6px;border-radius:3px;font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--text); }
+  .usage-body pre { background:#0a0d12;border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;font-size:11px;line-height:1.5;margin:8px 0;color:var(--text); }
+
+  /* Lang switcher */
+  .lang-btn { background:transparent;border:1px solid var(--border);color:var(--text2);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;transition:all .15s; }
+  .lang-btn:hover { border-color:var(--blue);color:var(--blue); }
+  .lang-btn.active { background:var(--blue);border-color:var(--blue);color:#fff; }
+
+  /* Footer */
+  .footer { margin-top: 32px; padding: 16px 0; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--text2); }
+
+  @media (max-width: 768px) {
+    .nav { flex-direction: column; gap: 8px; align-items: flex-start; }
+    .nav .info { flex-wrap: wrap; }
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .providers { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Nav -->
+  <div class="nav">
+    <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Free Model Gateway <span>Dashboard</span></h1>
+    <div class="info">
+      <span>v<span id="version">--</span></span>
+      <span class="badge" id="strategy"><span data-i18n="nav.strategy">Strategy</span>: <select id="strategy-select" onchange="switchStrategy(this.value)" style="background:transparent;border:none;color:var(--text);font-size:12px;cursor:pointer;outline:none"></select></span>
+      <span class="badge" id="mode-badge" style="border-color:var(--blue);color:var(--blue)">Auto</span>
+      <span id="last-used-badge" style="display:none"></span>
+      <span id="uptime"><span data-i18n="nav.uptime">Uptime</span>: --</span>
+      <span class="badge" id="missing-keys-badge" style="display:none;cursor:pointer;border-color:var(--orange);color:var(--orange)" onclick="switchTab('settings')">&#9888; <span data-i18n="nav.api_keys_needed">API keys needed</span></span>
+<span><button class="btn" onclick="refresh()">&#8635; <span data-i18n="nav.refresh">Refresh</span></button></span>
+<span><button class="btn btn-recover" onclick="recoverAll(event)"><span data-i18n="nav.recover_all">Recover All</span></button></span>
+      <span><button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="lang-zh" onclick="setLang('zh')">中</button></span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')" data-i18n="tab.dashboard">Dashboard</button>
+    <button class="tab" data-tab="settings" onclick="switchTab('settings')" data-i18n="tab.settings">Settings</button>
+  </div>
+
+  <!-- Restart banner (settings only) -->
+  <div class="restart-banner hidden" id="restart-banner">
+    <span>&#9888;</span>
+    <span class="grow" id="restart-banner-text" data-i18n="restart_banner">Settings have been updated. Restart the service to apply the changes.</span>
+    <button class="btn" id="dismiss-btn" onclick="dismissBanner()" data-i18n="restart_dismiss">Dismiss</button>
+  </div>
+
+  <!-- Dashboard view -->
+  <div id="view-dashboard">
+    <div class="cards" id="cards"></div>
+
+    <div class="section-title"><span data-i18n="dash.providers_section">Providers</span> <span class="count" id="prov-count"></span></div>
+    <div class="providers" id="providers"></div>
+
+    <div class="section-title" style="margin-top:20px">
+      <span data-i18n="dash.models_section">Models</span> <span class="count" id="model-count"></span>
+      <input class="search" id="search" data-i18n="dash.search_placeholder" placeholder="Search model..." oninput="filterTable()" style="margin-left:auto">
+    </div>
+    <div class="filters" id="filters">
+      <button class="active" data-filter="all" onclick="setFilter('all')" data-i18n="dash.filter_all">All</button>
+      <button data-filter="healthy" onclick="setFilter('healthy')" data-i18n="dash.filter_healthy">Healthy</button>
+      <button data-filter="cooldown" onclick="setFilter('cooldown')" data-i18n="dash.filter_cooldown">Cooldown</button>
+      <button data-filter="exhausted" onclick="setFilter('exhausted')" data-i18n="dash.filter_exhausted">Exhausted</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortBy('provider')"><span data-i18n="dash.th_provider">Provider</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('model')"><span data-i18n="dash.th_model">Model</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('status')"><span data-i18n="dash.th_status">Status</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('priority')"><span data-i18n="dash.th_priority">Priority</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('requests')"><span data-i18n="dash.th_requests">Requests</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('successRate')"><span data-i18n="dash.th_success">Success</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('latency')"><span data-i18n="dash.th_latency">Latency</span> <span class="sort">&#9650;</span></th>
+            <th onclick="sortBy('tokens')"><span data-i18n="dash.th_tokens">Tokens</span> <span class="sort">&#9650;</span></th>
+            <th><span data-i18n="dash.th_actions">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="models-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Settings view -->
+  <div id="view-settings" style="display:none">
+    <div class="section-title" style="margin-top:8px" data-i18n="settings.title">Config &amp; Environment</div>
+    <p style="color:var(--text2);font-size:12px;margin-bottom:20px" data-i18n="settings.desc">
+      Edit the gateway configuration and API keys. Changes are written atomically and take effect after a service restart.
+      Use the macOS status-bar menu (<b>Restart Service</b>) or run stop/start to reload.
+    </p>
+
+    <div class="editor">
+      <div class="editor-header">
+        <div>
+          <div style="font-weight:600">config.yaml</div>
+          <div class="editor-meta">
+            <span class="dot" id="config-dot"></span>
+            <span id="config-meta">--</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="editor-path" id="config-path">--</span>
+          <button class="btn" onclick="loadSettings(true)"><span data-i18n="settings.reload">Reload</span></button>
+          <button class="btn btn-save" id="config-save" onclick="saveConfig(event)">Save</button>
+        </div>
+      </div>
+      <textarea class="editor-area" id="config-editor" spellcheck="false" oninput="markDirty('config')"></textarea>
+    </div>
+
+    <div class="editor">
+      <div class="editor-header">
+        <div>
+          <div style="font-weight:600">.env</div>
+          <div class="editor-meta">
+            <span class="dot" id="env-dot"></span>
+            <span id="env-meta">--</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative">
+          <span class="editor-path" id="env-path">--</span>
+          <button class="btn" onclick="loadSettings(true)"><span data-i18n="settings.reload">Reload</span></button>
+          <span class="help-btn" onclick="toggleKeyHelp(event)" title="Where to get API keys">?</span>
+          <div class="help-popover hidden" id="key-help-popover" onclick="event.stopPropagation()">
+            <div class="help-popover-title" data-i18n="help.title">API Key Registration</div>
+            <table>
+              <tr><td>OPENCODE_API_KEY</td><td><a href="https://opencode.ai/auth" target="_blank">opencode.ai/auth</a></td></tr>
+              <tr><td>AIHUBMIX_API_KEY</td><td><a href="https://console.aihubmix.com/token" target="_blank">console.aihubmix.com/token</a></td></tr>
+              <tr><td>ZENMUX_API_KEY</td><td><a href="https://zenmux.ai/platform/pay-as-you-go" target="_blank">zenmux.ai/platform/pay-as-you-go</a></td></tr>
+              <tr><td>OPENROUTER_API_KEY</td><td><a href="https://openrouter.ai/models" target="_blank">openrouter.ai/models</a></td></tr>
+            </table>
+          </div>
+          <button class="btn btn-save" id="env-save" onclick="saveEnv(event)">Save</button>
+        </div>
+      </div>
+      <textarea class="editor-area" id="env-editor" spellcheck="false" oninput="markDirty('env')"></textarea>
+    </div>
+
+    <!-- Client Configuration Guides -->
+    <div class="section-title" style="margin-top:24px" data-i18n="usage.title">Client Configuration</div>
+    <p style="color:var(--text2);font-size:12px;margin-bottom:16px" data-i18n="usage.desc">
+      Configure your AI coding tools to use this gateway. Each tool below connects via the OpenAI-compatible endpoint <code>http://localhost:10086/v1</code>.
+    </p>
+
+    <div class="usage" id="usage-opencode">
+      <div class="usage-header" onclick="toggleUsage('opencode')">
+        <span class="icon">&#9670;</span>
+        <span class="name">OpenCode</span>
+        <span class="arrow" id="arrow-opencode">&#9654;</span>
+      </div>
+      <div class="usage-body hidden" id="body-opencode">
+        <p>Add to your OpenCode configuration file (e.g. <code>opencode.json</code>):</p>
+        <pre>{
+  "provider": {
+    "fmg": {
+      "name": "Free Model Gateway",
+      "options": {
+        "baseURL": "http://localhost:10086/v1",
+        "apiKey": "fmg-local"
+      },
+      "models": {
+        "auto": { "name": "Auto (Smart Routing)" }
+      }
+    }
+  }
+}</pre>
+        <p>Then select <code>fmg/auto</code> as your provider in the model picker.</p>
+      </div>
+    </div>
+
+    <div class="usage" id="usage-claude">
+      <div class="usage-header" onclick="toggleUsage('claude')">
+        <span class="icon">&#9670;</span>
+        <span class="name">Claude Code</span>
+        <span class="arrow" id="arrow-claude">&#9654;</span>
+      </div>
+      <div class="usage-body hidden" id="body-claude">
+        <p>Set environment variables before launching Claude Code:</p>
+        <pre>export ANTHROPIC_BASE_URL="http://localhost:10086"
+export ANTHROPIC_API_KEY="fmg-local"</pre>
+        <p>Or use OpenAI-compatible mode:</p>
+        <pre>export OPENAI_BASE_URL="http://localhost:10086/v1"
+export OPENAI_API_KEY="fmg-local"</pre>
+      </div>
+    </div>
+
+    <div class="usage" id="usage-trae">
+      <div class="usage-header" onclick="toggleUsage('trae')">
+        <span class="icon">&#9670;</span>
+        <span class="name">Trae</span>
+        <span class="arrow" id="arrow-trae">&#9654;</span>
+      </div>
+      <div class="usage-body hidden" id="body-trae">
+        <p>In Trae settings:</p>
+        <ol style="padding-left:16px;margin:8px 0">
+          <li>Go to <b>Settings &rarr; Models &rarr; Custom Provider</b></li>
+          <li>Set <b>API Endpoint:</b> <code>http://localhost:10086/v1</code></li>
+          <li>Set <b>API Key:</b> <code>fmg-local</code></li>
+          <li>Select model <code>auto</code> for smart routing</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="usage" id="usage-qoder">
+      <div class="usage-header" onclick="toggleUsage('qoder')">
+        <span class="icon">&#9670;</span>
+        <span class="name">Qoder</span>
+        <span class="arrow" id="arrow-qoder">&#9654;</span>
+      </div>
+      <div class="usage-body hidden" id="body-qoder">
+        <p>In Qoder settings:</p>
+        <ol style="padding-left:16px;margin:8px 0">
+          <li>Open <b>Settings &rarr; AI Provider</b></li>
+          <li>Choose <b>OpenAI Compatible</b></li>
+          <li>Set <b>Base URL:</b> <code>http://localhost:10086/v1</code></li>
+          <li>Set <b>API Key:</b> <code>fmg-local</code></li>
+          <li>Set <b>Model:</b> <code>auto</code></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="usage" id="usage-hermes">
+      <div class="usage-header" onclick="toggleUsage('hermes')">
+        <span class="icon">&#9670;</span>
+        <span class="name">Hermes</span>
+        <span class="arrow" id="arrow-hermes">&#9654;</span>
+      </div>
+      <div class="usage-body hidden" id="body-hermes">
+        <p>In Hermes configuration:</p>
+        <ol style="padding-left:16px;margin:8px 0">
+          <li>Open <b>Settings &rarr; Model Providers</b></li>
+          <li>Add a new <b>OpenAI Compatible</b> provider</li>
+          <li>Set <b>Endpoint:</b> <code>http://localhost:10086/v1</code></li>
+          <li>Set <b>API Key:</b> <code>fmg-local</code></li>
+          <li>Select model <code>auto</code></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <a href="https://github.com/HugeRivers/FreeModelGateway" target="_blank" rel="noopener" style="color:var(--text2);text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      HugeRivers/FreeModelGateway
+    </a>
+    <span style="margin:0 8px;color:var(--border)">|</span>
+    &copy;2026 liteliu &middot; <span data-i18n="footer.copyright">Free Model Gateway</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let data = { models: [], providers: [] };
+let filter = 'all';
+let search = '';
+let sortKey = 'priority';
+let sortAsc = true;
+let activeTab = 'dashboard';
+let configOriginal = '';
+let envOriginal = '';
+let configDirty = false;
+let envDirty = false;
+let currentLang = localStorage.getItem('fmg-lang') || 'zh';
+
+const LANG = {
+  en: {
+    'strat.priority': 'Priority',
+    'strat.round-robin': 'Round Robin',
+    'strat.weighted-rr': 'Weighted RR',
+    'strat.random': 'Random',
+    'nav.strategy': 'Strategy',
+    'nav.uptime': 'Uptime',
+    'nav.refresh': 'Refresh',
+    'nav.recover_all': 'Recover All',
+    'nav.api_keys_needed': 'API keys needed',
+    'nav.auto': 'Auto',
+    'nav.manual': 'Manual',
+    'tab.dashboard': 'Dashboard',
+    'tab.settings': 'Settings',
+    'dash.total_models': 'Total Models',
+    'dash.healthy': 'Healthy',
+    'dash.cooldown': 'Cooldown',
+    'dash.total_requests': 'Total Requests',
+    'dash.providers_section': 'Providers',
+    'dash.models_section': 'Models',
+    'dash.search_placeholder': 'Search model...',
+    'dash.filter_all': 'All',
+    'dash.filter_healthy': 'Healthy',
+    'dash.filter_cooldown': 'Cooldown',
+    'dash.filter_exhausted': 'Exhausted',
+    'dash.th_provider': 'Provider',
+    'dash.th_model': 'Model',
+    'dash.th_status': 'Status',
+    'dash.th_priority': 'Priority',
+    'dash.th_requests': 'Requests',
+    'dash.th_success': 'Success',
+    'dash.th_latency': 'Latency',
+    'dash.th_tokens': 'Tokens',
+    'dash.th_actions': 'Actions',
+    'dash.in_use': 'In Use',
+    'dash.failed': 'Failed',
+    'dash.recover': 'Recover',
+    'dash.use': 'Use',
+    'dash.recovering': 'Recovering',
+    'dash.switching': 'Switching',
+    'dash.no_models': 'No models match the current filter.',
+    'settings.title': 'Config & Environment',
+    'settings.desc': 'Edit the gateway configuration and API keys. Changes are written atomically and take effect after a service restart. Use the macOS status-bar menu (Restart Service) or run stop/start to reload.',
+    'settings.config_yaml': 'config.yaml',
+    'settings.dot_env': '.env',
+    'settings.reload': 'Reload',
+    'settings.saved': 'Saved',
+    'settings.file_not_found': 'File not found - editor is empty. Save will create it.',
+    'settings.save': 'Save',
+    'settings.save_asterisk': 'Save *',
+    'help.title': 'API Key Registration',
+    'help.note': 'Click any link to open the registration page.',
+    'usage.title': 'Client Configuration',
+    'usage.desc': 'Configure your AI coding tools to use this gateway. Each tool below connects via the OpenAI-compatible endpoint.',
+    'footer.copyright': 'Free Model Gateway',
+    'toast.recovered': 'Recovered:',
+    'toast.no_recovered': 'No model recovered',
+    'toast.recovered_all': 'Recovered',
+    'toast.switch_failed': 'Switch failed:',
+    'toast.switched_to': 'Switched to:',
+    'toast.failed_switch': 'Failed to switch model',
+    'toast.auto_mode': 'Switched to Auto mode',
+    'toast.save_config': 'config.yaml saved. Restart to apply.',
+    'toast.save_env': '.env saved. Restart to apply.',
+    'toast.save_failed': 'Save failed:',
+    'toast.load_failed': 'Failed to load settings',
+    'restart_banner': 'Settings have been updated. Restart the service to apply the changes.',
+    'restart_dismiss': 'Dismiss',
+  },
+  zh: {
+    'strat.priority': '顺序优选',
+    'strat.round-robin': '轮询选择',
+    'strat.weighted-rr': '加权轮询',
+    'strat.random': '随机选择',
+    'nav.strategy': '策略',
+    'nav.uptime': '运行时间',
+    'nav.refresh': '刷新',
+    'nav.recover_all': '全部恢复',
+    'nav.api_keys_needed': '需要设置 API Key',
+    'nav.auto': '自动',
+    'nav.manual': '手动',
+    'tab.dashboard': '仪表盘',
+    'tab.settings': '设置',
+    'dash.total_models': '模型总数',
+    'dash.healthy': '健康',
+    'dash.cooldown': '冷却中',
+    'dash.total_requests': '总请求数',
+    'dash.providers_section': '提供商',
+    'dash.models_section': '模型',
+    'dash.search_placeholder': '搜索模型...',
+    'dash.filter_all': '全部',
+    'dash.filter_healthy': '健康',
+    'dash.filter_cooldown': '冷却',
+    'dash.filter_exhausted': '耗尽',
+    'dash.th_provider': '提供商',
+    'dash.th_model': '模型',
+    'dash.th_status': '状态',
+    'dash.th_priority': '优先级',
+    'dash.th_requests': '请求',
+    'dash.th_success': '成功率',
+    'dash.th_latency': '延迟',
+    'dash.th_tokens': 'Token',
+    'dash.th_actions': '操作',
+    'dash.in_use': '使用中',
+    'dash.failed': '失败',
+    'dash.recover': '恢复',
+    'dash.use': '使用',
+    'dash.recovering': '恢复中',
+    'dash.switching': '切换中',
+    'dash.no_models': '没有匹配的模型',
+    'settings.title': '配置与环境',
+    'settings.desc': '编辑网关配置和 API Key。修改会自动写入文件，重启服务后生效。可以使用 macOS 状态栏菜单（重启服务）或重新启动进程来加载。',
+    'settings.config_yaml': 'config.yaml',
+    'settings.dot_env': '.env',
+    'settings.reload': '重新加载',
+    'settings.saved': '已保存',
+    'settings.file_not_found': '文件不存在 - 编辑器为空。保存将创建文件。',
+    'settings.save': '保存',
+    'settings.save_asterisk': '保存 *',
+    'help.title': 'API Key 注册地址',
+    'help.note': '点击链接打开注册页面。',
+    'usage.title': '客户端配置',
+    'usage.desc': '配置您的 AI 编程工具使用此网关。以下各工具均通过 OpenAI 兼容接口连接。',
+    'footer.copyright': '免费模型网关',
+    'toast.recovered': '已恢复：',
+    'toast.no_recovered': '没有模型被恢复',
+    'toast.recovered_all': '已恢复',
+    'toast.switch_failed': '切换失败：',
+    'toast.switched_to': '已切换到：',
+    'toast.failed_switch': '切换模型失败',
+    'toast.auto_mode': '已切换到自动模式',
+    'toast.save_config': 'config.yaml 已保存。重启后生效。',
+    'toast.save_env': '.env 已保存。重启后生效。',
+    'toast.save_failed': '保存失败：',
+    'toast.load_failed': '加载设置失败',
+    'restart_banner': '设置已更新。重启服务以应用更改。',
+    'restart_dismiss': '忽略',
+  }
+};
+
+function t(key) {
+  return LANG[currentLang] && LANG[currentLang][key] !== undefined
+    ? LANG[currentLang][key]
+    : LANG['en'][key] || key;
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('fmg-lang', lang);
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.id === 'lang-' + lang));
+  // Update static elements with data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  // Update dynamic placeholder
+  const searchEl = $('search');
+  if (searchEl) searchEl.placeholder = t('dash.search_placeholder');
+  // Update restart banner
+  const bannerText = $('restart-banner-text');
+  if (bannerText) bannerText.textContent = t('restart_banner');
+  const dismissBtn = $('dismiss-btn');
+  if (dismissBtn) dismissBtn.textContent = t('restart_dismiss');
+  // Update strategy dropdown labels
+  renderStrategyOptions();
+  // Re-render dashboard if visible
+  if (activeTab === 'dashboard') {
+    render();
+  }
+}
+
+function renderStrategyOptions() {
+  const modes = ['priority', 'round-robin', 'weighted-rr', 'random'];
+  const sel = $('strategy-select');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = modes.map(m => '<option value="' + m + '">' + t('strat.' + m) + '</option>').join('');
+  sel.value = current;
+}
+
+function $(id) { return document.getElementById(id); }
+
+function formatTime(d) {
+  const h = Math.floor(d / 3600);
+  const m = Math.floor((d % 3600) / 60);
+  const s = d % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function fmt(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'k';
+  return n;
+}
+
+function showToast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), type === 'warn' ? 6000 : 3000);
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('view-dashboard').style.display = (tab === 'dashboard') ? '' : 'none';
+  $('view-settings').style.display = (tab === 'settings') ? '' : 'none';
+  if (tab === 'settings') {
+    loadSettings(false);
+  } else {
+    refresh();
+  }
+}
+
+function dismissBanner() {
+  $('restart-banner').classList.add('hidden');
+}
+
+function toggleKeyHelp(event) {
+  event.stopPropagation();
+  const popover = $('key-help-popover');
+  popover.classList.toggle('hidden');
+}
+
+document.addEventListener('click', function() {
+  const popover = $('key-help-popover');
+  if (!popover.classList.contains('hidden')) {
+    popover.classList.add('hidden');
+  }
+});
+
+function toggleUsage(id) {
+  const body = $('body-' + id);
+  const arrow = $('arrow-' + id);
+  body.classList.toggle('hidden');
+  arrow.classList.toggle('open');
+}
+
+async function refresh() {
+  try {
+    const res = await fetch('/api/dashboard');
+    const json = await res.json();
+    data = json;
+    render();
+  } catch(e) {
+    $('cards').innerHTML = '<div class="error">' + t('toast.load_failed') + '. Is the gateway running?</div>';
+  }
+}
+
+function render() {
+  if (!data) return;
+  const { health, stats } = data;
+  const models = stats?.models || [];
+  const providers = data.providers || health?.providers_data || [];
+
+  $('version').textContent = health?.version || data.version || '--';
+  renderStrategyOptions();
+  const stratEl = $('strategy-select');
+  if (stratEl) stratEl.value = data.strategy || health?.strategy || 'priority';
+  if (health?.uptime_seconds != null) {
+    $('uptime').textContent = t('nav.uptime') + ': ' + formatTime(health.uptime_seconds);
+  }
+
+  // Missing API keys badge (clickable -> navigate to Settings tab)
+  const missingKeys = data.missing_keys || [];
+  const missingEl = $('missing-keys-badge');
+  if (missingKeys.length > 0) {
+    missingEl.style.display = '';
+    missingEl.title = t('nav.api_keys_needed') + ': ' + missingKeys.join(', ');
+    missingEl.innerHTML = '&#9888; <span data-i18n="nav.api_keys_needed">' + t('nav.api_keys_needed') + '</span>: ' + missingKeys.join(', ');
+  } else {
+    missingEl.style.display = 'none';
+  }
+
+  const fm = data.forced_model;
+  const modeEl = $('mode-badge');
+  const lastUsedEl = $('last-used-badge');
+
+  let forcedStatus = '';
+  if (fm && fm.provider_id && stats?.models) {
+    const found = stats?.models?.find(m => m.provider_id === fm.provider_id && m.model_id === fm.model_id);
+    if (found) forcedStatus = found.status;
+  }
+
+  if (fm && fm.provider_id) {
+    if (forcedStatus === 'cooldown' || forcedStatus === 'exhausted') {
+      modeEl.textContent = '⚠ ' + t('nav.manual') + ': ' + fm.model_id + ' (' + forcedStatus + ')';
+      modeEl.style.borderColor = 'var(--red)';
+      modeEl.style.color = 'var(--red)';
+      modeEl.title = t('nav.manual') + ': ' + fm.model_id + ' (' + forcedStatus + ')';
+    } else {
+      modeEl.textContent = t('nav.manual') + ': ' + fm.model_id;
+      modeEl.style.borderColor = 'var(--green)';
+      modeEl.style.color = 'var(--green)';
+      modeEl.title = t('nav.manual') + ': ' + fm.model_id;
+    }
+  } else {
+    modeEl.textContent = t('nav.auto');
+    modeEl.style.borderColor = 'var(--blue)';
+    modeEl.style.color = 'var(--blue)';
+    modeEl.title = 'Automatic strategy-based routing';
+  }
+
+  const lu = data.last_used;
+  if (lu && lu.provider_id) {
+    lastUsedEl.style.display = '';
+    const isSameAsForced = fm && fm.provider_id === lu.provider_id && fm.model_id === lu.model_id;
+    if (isSameAsForced) {
+      lastUsedEl.textContent = '';
+      lastUsedEl.style.display = 'none';
+    } else {
+      lastUsedEl.className = 'badge';
+      lastUsedEl.style.borderColor = 'var(--purple)';
+      lastUsedEl.style.color = 'var(--purple)';
+      lastUsedEl.textContent = 'Last used: ' + lu.model_id + ' (' + (lu.provider_name || lu.provider_id) + ')';
+    }
+  } else {
+    lastUsedEl.style.display = 'none';
+  }
+
+  $('cards').innerHTML = `
+    <div class="card c-blue">
+      <div class="label">${t('dash.total_models')}</div>
+      <div class="value">${health?.models_total ?? 0}</div>
+      <div class="sub">${health?.providers ?? 0} ${t('dash.providers_section').toLowerCase()}</div>
+    </div>
+    <div class="card c-green">
+      <div class="label">${t('dash.healthy')}</div>
+      <div class="value">${health?.healthy ?? 0}</div>
+      <div class="sub">${health?.models_total ? ((health.healthy/health.models_total)*100).toFixed(1)+'%' : '0%'}</div>
+    </div>
+    <div class="card c-yellow">
+      <div class="label">${t('dash.cooldown')}</div>
+      <div class="value">${health?.cooldown ?? 0}</div>
+      <div class="sub">${health?.models_total ? ((health.cooldown/health.models_total)*100).toFixed(1)+'%' : '0%'}</div>
+    </div>
+    <div class="card c-purple">
+      <div class="label">${t('dash.total_requests')}</div>
+      <div class="value">${fmt(stats?.total_requests ?? 0)}</div>
+      <div class="sub">⬆ ${fmt(stats?.total_input_tokens ?? 0)} / ⬇ ${fmt(stats?.total_output_tokens ?? 0)}</div>
+    </div>
+  `;
+
+  const provData = stats?.models ? aggregateProviders(stats.models) : [];
+  $('prov-count').textContent = '(' + provData.length + ')';
+  $('providers').innerHTML = provData.map(p => `
+    <div class="provider-card">
+      <div>
+        <div class="name">${p.name}</div>
+        <div class="meta">P${p.priority}</div>
+      </div>
+      <div class="counts">
+        <div><span class="ok">${p.healthy}</span> / <span class="cold">${p.cooldown}</span> / ${p.total}</div>
+        <div style="font-size:11px;color:var(--text2)">${fmt(p.requests)} req</div>
+      </div>
+    </div>
+  `).join('');
+
+  renderTable();
+}
+
+function aggregateProviders(models) {
+  const map = {};
+  for (const m of models) {
+    if (!map[m.provider_id]) {
+      map[m.provider_id] = { id: m.provider_id, name: m.provider_name, total: 0, healthy: 0, cooldown: 0, requests: 0, priority: m.priority };
+    }
+    map[m.provider_id].total++;
+    if (m.status === 'healthy') map[m.provider_id].healthy++;
+    if (m.status === 'cooldown') map[m.provider_id].cooldown++;
+    map[m.provider_id].requests += m.total_requests;
+  }
+  return Object.values(map).sort((a,b) => a.priority - b.priority);
+}
+
+function renderTable() {
+  const models = data.stats?.models || [];
+  $('model-count').textContent = '(' + models.length + ')';
+
+  let filtered = models.filter(m => {
+    if (filter !== 'all' && m.status !== filter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return m.model_id?.toLowerCase().includes(q) ||
+             m.model_name?.toLowerCase().includes(q) ||
+             m.provider_name?.toLowerCase().includes(q) ||
+             m.provider_id?.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  filtered.sort((a,b) => {
+    let va, vb;
+    switch(sortKey) {
+      case 'provider': va = a.provider_name || ''; vb = b.provider_name || ''; break;
+      case 'model': va = a.model_id || ''; vb = b.model_id || ''; break;
+      case 'status': va = a.status || ''; vb = b.status || ''; break;
+      case 'priority': va = a.priority ?? 999; vb = b.priority ?? 999; break;
+      case 'requests': va = a.total_requests ?? 0; vb = b.total_requests ?? 0; break;
+      case 'successRate': va = a.success_rate ?? 1; vb = b.success_rate ?? 1; break;
+      case 'latency': va = a.avg_latency_ms ?? 0; vb = b.avg_latency_ms ?? 0; break;
+      case 'tokens': va = (a.input_tokens ?? 0) + (a.output_tokens ?? 0); vb = (b.input_tokens ?? 0) + (b.output_tokens ?? 0); break;
+    }
+    if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortAsc ? va - vb : vb - va;
+  });
+
+  document.querySelectorAll('th .sort').forEach(el => el.textContent = '▲');
+  const sortedTh = document.querySelector(`th[onclick*="${sortKey}"] .sort`);
+  if (sortedTh) sortedTh.textContent = sortAsc ? '▲' : '▼';
+
+  if (filtered.length === 0) {
+    $('models-tbody').innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">' + t('dash.no_models') + '</td></tr>';
+    return;
+  }
+
+  const forcedKey = data.forced_model ? (data.forced_model.provider_id + '|' + data.forced_model.model_id) : '';
+  const lastUsedKey = data.last_used ? (data.last_used.provider_id + '|' + data.last_used.model_id) : '';
+
+  $('models-tbody').innerHTML = filtered.map(m => {
+    const totalTokens = (m.input_tokens || 0) + (m.output_tokens || 0);
+    const isCooldown = m.status === 'cooldown';
+    const isExhausted = m.status === 'exhausted';
+    const isLastUsed = lastUsedKey && m.provider_id === data.last_used.provider_id && m.model_id === data.last_used.model_id;
+    const isForced = forcedKey && m.provider_id === data.forced_model.provider_id && m.model_id === data.forced_model.model_id;
+    const rate = m.success_rate != null ? (m.success_rate * 100).toFixed(1) + '%' : '--';
+    const lat = m.avg_latency_ms ? m.avg_latency_ms + 'ms' : '--';
+
+    let actionHtml = '';
+    if (isLastUsed || (isForced && !isCooldown && !isExhausted)) {
+      actionHtml = '<span style="color:var(--green);font-size:12px;font-weight:500">&#9673; ' + t('dash.in_use') + '</span>';
+    } else if (isForced && (isCooldown || isExhausted)) {
+      actionHtml = '<span style="color:var(--red);font-size:12px">&#9888; ' + t('dash.failed') + '</span>';
+    } else if (isCooldown) {
+      actionHtml = `<button class="btn btn-recover" onclick="recoverModel('${escHtml(m.provider_id)}','${escHtml(m.model_id)}',event)">${t('dash.recover')}</button>`;
+    } else {
+      actionHtml = `<button class="btn btn-use" onclick="switchModel('${escHtml(m.provider_id)}','${escHtml(m.model_id)}',event)">${t('dash.use')}</button>`;
+    }
+
+    return `<tr>
+      <td><span class="provider-tag">${escHtml(m.provider_name || m.provider_id)}</span></td>
+      <td><span class="model-id">${escHtml(m.model_id)}</span>${m.model_name && m.model_name !== m.model_id ? `<span class="model-name">${escHtml(m.model_name)}</span>` : ''}</td>
+      <td><span class="status ${m.status || 'unknown'}">${m.status || 'unknown'}</span></td>
+      <td>P${m.priority ?? '--'}</td>
+      <td>${fmt(m.total_requests ?? 0)}</td>
+      <td style="color:${(m.success_rate ?? 1) >= 0.95 ? 'var(--green)' : (m.success_rate ?? 1) >= 0.8 ? 'var(--yellow)' : 'var(--red)'}">${rate}</td>
+      <td class="latency">${lat}</td>
+      <td class="tokens">${fmt(totalTokens)}</td>
+      <td>${actionHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('#filters button').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  renderTable();
+}
+
+function filterTable() {
+  search = $('search').value;
+  renderTable();
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = true; }
+  renderTable();
+}
+
+async function recoverModel(providerId, modelId, event) {
+  const btn = event ? event.target : null;
+  try {
+    if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.dataset.origText = btn.textContent; btn.textContent = t('dash.recovering'); }
+  } catch { if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('dash.recover'); } }
+  try {
+    const res = await fetch('/api/model/' + modelId + '/recover', { method: 'POST' });
+    const json = await res.json();
+    if (json.success) {
+      render();
+      showToast(t('toast.recovered') + ' ' + modelId, 'success');
+    } else {
+      showToast(t('toast.failed_switch'), 'error');
+    }
+  } catch(e) {
+    showToast(t('toast.failed_switch'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('dash.recover'); }
+  }
+}
+
+async function recoverAll(event) {
+  const btn = event ? event.target : null;
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.dataset.origText = btn.textContent; btn.textContent = 'Recovering'; }
+  try {
+    const res = await fetch('/admin/recover', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: '{}'
+    });
+    const json = await res.json();
+    showToast(t('toast.recovered_all') + ' ' + json.recovered + (currentLang==='zh'?' 个模型':' models'), 'success');
+    refresh();
+  } catch(e) {
+    showToast(t('toast.no_recovered'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('nav.recover_all'); }
+  }
+}
+
+async function switchModel(providerId, modelId, event) {
+  const btn = event ? event.target : null;
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.dataset.origText = btn.textContent; btn.textContent = t('dash.switching'); }
+  try {
+    const res = await fetch('/admin/switch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ provider_id: providerId, model_id: modelId })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      showToast(t('toast.switch_failed') + ' ' + (json.error || 'probe unreachable'), 'error');
+      return;
+    }
+    if (json.mode === 'manual') {
+      showToast(t('toast.switched_to') + ' ' + modelId, 'success');
+      refresh();
+    } else {
+      showToast(t('toast.switch_failed') + ' ' + (json.error || 'unknown'), 'error');
+    }
+  } catch(e) {
+    showToast(t('toast.failed_switch'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('dash.use'); }
+  }
+}
+
+async function setAuto(event) {
+  const btn = event ? event.target : null;
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.dataset.origText = btn.textContent; btn.textContent = t('dash.switching'); }
+  try {
+    const res = await fetch('/admin/switch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ auto: true })
+    });
+    const json = await res.json();
+    if (json.mode === 'auto') {
+      showToast(t('toast.auto_mode'), 'success');
+      refresh();
+    }
+  } catch(e) {
+    showToast(t('toast.failed_switch'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('nav.auto'); }
+  }
+}
+
+async function switchStrategy(mode) {
+  try {
+    const res = await fetch('/admin/strategy', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ mode })
+    });
+    const json = await res.json();
+    if (json.switched) {
+      showToast('Strategy: ' + json.mode, 'success');
+      refresh();
+    } else {
+      showToast('Failed: ' + (json.error || 'unknown'), 'error');
+    }
+  } catch(e) {
+    showToast('Failed to switch strategy', 'error');
+  }
+}
+
+$('mode-badge').addEventListener('click', function() {
+  if (data.forced_model && data.forced_model.provider_id) {
+    setAuto();
+  }
+});
+
+async function loadSettings(force) {
+  if (!force && (configDirty || envDirty)) {
+    return;
+  }
+  try {
+    const [cfgRes, envRes] = await Promise.all([
+      fetch('/api/settings/config'),
+      fetch('/api/settings/env'),
+    ]);
+    const cfg = await cfgRes.json();
+    const env = await envRes.json();
+    applySetting('config', cfg);
+    applySetting('env', env);
+  } catch(e) {
+    showToast(t('toast.load_failed'), 'error');
+  }
+}
+
+function applySetting(kind, payload) {
+  const editor = $(kind + '-editor');
+  const meta = $(kind + '-meta');
+  const path = $(kind + '-path');
+  const dot = $(kind + '-dot');
+  if (payload.error) {
+    showToast('Read ' + kind + ': ' + payload.error, 'error');
+    return;
+  }
+  editor.value = payload.content || '';
+  if (kind === 'config') configOriginal = editor.value;
+  if (kind === 'env') envOriginal = editor.value;
+  setDirty(kind, false);
+  path.textContent = payload.path || '--';
+  if (payload.exists) {
+    const size = payload.size != null ? ' · ' + payload.size + ' B' : '';
+    meta.textContent = t('settings.saved') + size + ' · ' + (payload.mtime || '');
+  } else {
+    meta.textContent = t('settings.file_not_found');
+  }
+}
+
+function markDirty(kind) {
+  const editor = $(kind + '-editor');
+  const original = kind === 'config' ? configOriginal : envOriginal;
+  const dirty = editor.value !== original;
+  setDirty(kind, dirty);
+}
+
+function setDirty(kind, dirty) {
+  if (kind === 'config') configDirty = dirty;
+  if (kind === 'env') envDirty = dirty;
+  const editor = $(kind + '-editor');
+  const saveBtn = $(kind + '-save');
+  const dot = $(kind + '-dot');
+  editor.classList.toggle('dirty', dirty);
+  saveBtn.classList.toggle('dirty', dirty);
+  dot.classList.toggle('dirty', dirty);
+  dot.classList.toggle('clean', !dirty);
+  if (dirty) {
+    saveBtn.textContent = t('settings.save_asterisk');
+  } else {
+    saveBtn.textContent = t('settings.save');
+  }
+}
+
+async function saveConfig(event) {
+  const btn = event ? event.target : null;
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.dataset.origText = btn.textContent; btn.textContent = t('settings.saved'); }
+  try {
+    const res = await fetch('/api/settings/config', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: $('config-editor').value })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      showToast(t('toast.save_failed') + ' ' + (json.error || 'unknown'), 'error');
+      return;
+    }
+    configOriginal = $('config-editor').value;
+    setDirty('config', false);
+    showRestartBanner();
+    showToast(t('toast.save_config'), 'warn');
+    loadSettings(false);
+  } catch(e) {
+    showToast(t('toast.save_failed') + ' config.yaml', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('settings.save'); }
+  }
+}
+
+async function saveEnv(event) {
+  const btn = event ? event.target : null;
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.dataset.origText = btn.textContent; btn.textContent = t('settings.saved'); }
+  try {
+    const res = await fetch('/api/settings/env', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content: $('env-editor').value })
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      showToast(t('toast.save_failed') + ' ' + (json.error || 'unknown'), 'error');
+      return;
+    }
+    envOriginal = $('env-editor').value;
+    setDirty('env', false);
+    showRestartBanner();
+    showToast(t('toast.save_env'), 'warn');
+    loadSettings(false);
+  } catch(e) {
+    showToast(t('toast.save_failed') + ' .env', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = btn.dataset.origText || t('settings.save'); }
+  }
+}
+
+function showRestartBanner() {
+  $('restart-banner').classList.remove('hidden');
+}
+
+window.addEventListener('beforeunload', function(e) {
+  if (configDirty || envDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+});
+
+setLang(currentLang);
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

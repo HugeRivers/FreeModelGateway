@@ -65,26 +65,58 @@ func (f *Forwarder) Forward(ctx context.Context, backend *model.BackendModel, bo
 		req.Header.Set(k, v)
 	}
 
+	f.log.WithFields(logrus.Fields{
+		"provider": backend.ProviderID,
+		"model":    backend.ModelID,
+		"url":      backend.BaseURL,
+	}).Debug("upstream forwarding started")
+
 	start := time.Now()
 	resp, err := f.client.Do(req)
 	latency := time.Since(start)
 	if err != nil {
+		f.log.WithFields(logrus.Fields{
+			"provider":   backend.ProviderID,
+			"model":      backend.ModelID,
+			"latency_ms": latency.Milliseconds(),
+			"error":      err.Error(),
+		}).Warn("upstream forwarding failed")
 		return nil, fmt.Errorf("upstream call: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		f.log.WithFields(logrus.Fields{
+			"provider":   backend.ProviderID,
+			"model":      backend.ModelID,
+			"latency_ms": latency.Milliseconds(),
+			"error":      err.Error(),
+		}).Warn("upstream read body failed")
 		return nil, fmt.Errorf("read upstream body: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		f.log.WithFields(logrus.Fields{
+			"provider":     backend.ProviderID,
+			"model":        backend.ModelID,
+			"status":       resp.StatusCode,
+			"latency_ms":   latency.Milliseconds(),
+			"body_snippet": string(respBody)[:min(len(respBody), 200)],
+		}).Warn("upstream returned error status")
 		return nil, &HTTPError{
 			StatusCode: resp.StatusCode,
 			Body:       respBody,
 			Msg:        fmt.Sprintf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode)),
 		}
 	}
+
+	f.log.WithFields(logrus.Fields{
+		"provider":   backend.ProviderID,
+		"model":      backend.ModelID,
+		"latency_ms": latency.Milliseconds(),
+		"status":     resp.StatusCode,
+	}).Debug("upstream forwarding completed")
 
 	result := &ForwardResult{
 		StatusCode: resp.StatusCode,
@@ -99,6 +131,70 @@ func (f *Forwarder) Forward(ctx context.Context, backend *model.BackendModel, bo
 		backend.MarkSuccess(0, 0, latency)
 	}
 	return result, nil
+}
+
+// Probe sends a lightweight HEAD request to check if a backend is reachable.
+// It returns nil if the backend responds (2xx/3xx/404/405) or an error
+// if the connection fails or the backend returns 5xx/429.
+func (f *Forwarder) Probe(ctx context.Context, backend *model.BackendModel) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
+	if err != nil {
+		return fmt.Errorf("probe build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+backend.APIKey)
+	req.Header.Set("User-Agent", "fmg/"+f.version)
+	for k, v := range backend.ExtraHeaders {
+		req.Header.Set(k, v)
+	}
+
+	f.log.WithFields(logrus.Fields{
+		"provider": backend.ProviderID,
+		"model":    backend.ModelID,
+		"url":      backend.BaseURL,
+	}).Debug("probe started")
+
+	start := time.Now()
+	resp, err := f.client.Do(req)
+	latency := time.Since(start)
+	if err != nil {
+		f.log.WithFields(logrus.Fields{
+			"provider":   backend.ProviderID,
+			"model":      backend.ModelID,
+			"latency_ms": latency.Milliseconds(),
+			"error":      err.Error(),
+		}).Warn("probe failed")
+		return fmt.Errorf("probe connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 405 Method Not Allowed means the server is up but doesn't support HEAD
+	if resp.StatusCode == http.StatusMethodNotAllowed {
+		f.log.WithFields(logrus.Fields{
+			"provider":   backend.ProviderID,
+			"model":      backend.ModelID,
+			"latency_ms": latency.Milliseconds(),
+		}).Debug("probe ok (405 HEAD not supported)")
+		return nil
+	}
+
+	// 2xx/3xx/404 are OK (404 means endpoint not found but server is reachable)
+	if resp.StatusCode < 400 || resp.StatusCode == http.StatusNotFound {
+		f.log.WithFields(logrus.Fields{
+			"provider":   backend.ProviderID,
+			"model":      backend.ModelID,
+			"status":     resp.StatusCode,
+			"latency_ms": latency.Milliseconds(),
+		}).Debug("probe ok")
+		return nil
+	}
+
+	f.log.WithFields(logrus.Fields{
+		"provider":   backend.ProviderID,
+		"model":      backend.ModelID,
+		"status":     resp.StatusCode,
+		"latency_ms": latency.Milliseconds(),
+	}).Warn("probe returned error status")
+	return fmt.Errorf("probe returned status %d", resp.StatusCode)
 }
 
 func extractUsage(body []byte) (*Usage, bool) {
