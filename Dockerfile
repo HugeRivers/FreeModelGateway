@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -14,4 +14,4 @@ COPY --from=builder /app/fmg /app/fmg
 USER fmg
 EXPOSE 10086
 ENTRYPOINT ["/app/fmg"]
-CMD ["-c", "/app/config.yaml"]
+CMD ["--log-level", "info"]

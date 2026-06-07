@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"sort"
 	"sync"
 
 	"github.com/free-model-gateway/fmg/internal/config"
@@ -22,7 +21,6 @@ type ProviderSummary struct {
 	Healthy      int    `json:"healthy"`
 	Cooldown     int    `json:"cooldown"`
 	HasAPIKey    bool   `json:"has_api_key"`
-	Priority     int    `json:"priority"`
 }
 
 func NewPool(cfgs []config.ProviderConfig) (*Pool, error) {
@@ -59,9 +57,6 @@ func (p *Pool) Available() []*BackendModel {
 			out = append(out, m)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].Priority < out[j].Priority
-	})
 	return out
 }
 
@@ -121,7 +116,6 @@ func (p *Pool) ProviderSummary() []ProviderSummary {
 			a = &acc{summary: ProviderSummary{
 				ProviderID:   m.ProviderID,
 				ProviderName: m.ProviderName,
-				Priority:     m.Priority,
 				HasAPIKey:    m.APIKey != "",
 			}}
 			groups[m.ProviderID] = a

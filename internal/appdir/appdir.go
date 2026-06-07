@@ -13,11 +13,9 @@ func Home() string {
 	return filepath.Join(home, ".fmg")
 }
 
-func ConfigFile() string { return filepath.Join(Home(), "config.yaml") }
-func EnvFile() string    { return filepath.Join(Home(), ".env") }
-func LogDir() string     { return filepath.Join(Home(), "logs") }
-func DBFile() string     { return filepath.Join(Home(), "data.db") }
-func PidFile() string    { return filepath.Join(Home(), "fmg.pid") }
+func LogDir() string  { return filepath.Join(Home(), "logs") }
+func DBFile() string  { return filepath.Join(Home(), "data.db") }
+func PidFile() string { return filepath.Join(Home(), "fmg.pid") }
 
 func EnsureAll() error {
 	dirs := []string{Home(), LogDir()}

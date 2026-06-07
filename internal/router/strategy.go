@@ -2,9 +2,12 @@ package router
 
 import (
 	"context"
+	"errors"
 
 	"github.com/free-model-gateway/fmg/internal/model"
 )
+
+var ErrNoCandidate = errors.New("no candidate model available")
 
 type Message struct {
 	Role    string      `json:"role"`

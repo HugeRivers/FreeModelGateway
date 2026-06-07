@@ -41,13 +41,44 @@ lipo -create "$ARM64_BIN" "$AMD64_BIN" -output "$UNIVERSAL_BIN"
 echo "  -> bin/fmg ($(du -h "$UNIVERSAL_BIN" | cut -f1))"
 
 echo ""
-echo ">>> Building tray app to bin/..."
+echo ">>> Building tray app (universal binary) to bin/..."
+
+TRAY_ARM64="${BIN_DIR}/fmg-tray-arm64"
+CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+    CGO_CFLAGS="-mmacosx-version-min=10.13" CGO_LDFLAGS="-mmacosx-version-min=10.13" \
+    go build -ldflags "$LDFLAGS" -o "$TRAY_ARM64" ./cmd/tray/ 2>/dev/null || {
+        echo "  -> Warning: arm64 tray build failed (may need macOS SDK)"
+    }
+
+TRAY_AMD64="${BIN_DIR}/fmg-tray-amd64"
+if command -v arch >/dev/null 2>&1 && arch -x86_64 uname -m >/dev/null 2>&1; then
+    arch -x86_64 env CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
+        CGO_CFLAGS="-mmacosx-version-min=10.13" CGO_LDFLAGS="-mmacosx-version-min=10.13" \
+        go build -ldflags "$LDFLAGS" -o "$TRAY_AMD64" ./cmd/tray/ 2>/dev/null || {
+            echo "  -> Warning: amd64 tray build failed (Rosetta may not be installed)"
+        }
+else
+    CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
+        CGO_CFLAGS="-mmacosx-version-min=10.13" CGO_LDFLAGS="-mmacosx-version-min=10.13" \
+        go build -ldflags "$LDFLAGS" -o "$TRAY_AMD64" ./cmd/tray/ 2>/dev/null || {
+            echo "  -> Warning: amd64 tray build failed"
+        }
+fi
 
 TRAY_BIN="${BIN_DIR}/fmg-tray"
-CGO_ENABLED=1 GOOS=darwin GOARCH=$(uname -m | sed 's/arm64/arm64/;s/x86_64/amd64/') \
-    go build -ldflags "$LDFLAGS" -o "$TRAY_BIN" ./cmd/tray/
-
-echo "  -> bin/fmg-tray ($(du -h "$TRAY_BIN" | cut -f1))"
+if [ -f "$TRAY_ARM64" ] && [ -f "$TRAY_AMD64" ]; then
+    lipo -create "$TRAY_ARM64" "$TRAY_AMD64" -output "$TRAY_BIN"
+    echo "  -> bin/fmg-tray (universal, $(du -h "$TRAY_BIN" | cut -f1))"
+elif [ -f "$TRAY_ARM64" ]; then
+    cp "$TRAY_ARM64" "$TRAY_BIN"
+    echo "  -> bin/fmg-tray (arm64 only, $(du -h "$TRAY_BIN" | cut -f1))"
+elif [ -f "$TRAY_AMD64" ]; then
+    cp "$TRAY_AMD64" "$TRAY_BIN"
+    echo "  -> bin/fmg-tray (amd64 only, $(du -h "$TRAY_BIN" | cut -f1))"
+else
+    echo "  -> Error: tray app build failed completely"
+    exit 1
+fi
 echo ""
 
 echo ">>> Creating .app bundle..."
@@ -99,10 +130,14 @@ PLIST
 
 sed -i '' "s/__VERSION__/${VERSION}/g" "${CONTENTS}/Info.plist"
 
-cp "${SCRIPT_DIR}/config.example.yaml" "${RESOURCES}/config.yaml"
-cp "${SCRIPT_DIR}/.env.example" "${RESOURCES}/.env"
+
 if [ -f "${SCRIPT_DIR}/assets/AppIcon.icns" ]; then
     cp "${SCRIPT_DIR}/assets/AppIcon.icns" "${RESOURCES}/AppIcon.icns"
+fi
+
+if [ -d "${SCRIPT_DIR}/web-app" ]; then
+    cp -R "${SCRIPT_DIR}/web-app" "${RESOURCES}/web-app"
+    echo "  -> Copied web-app to Resources/"
 fi
 
 echo "  -> Created: ${APP_BUNDLE}"
@@ -118,9 +153,11 @@ mkdir -p "${PKG_ROOT}/usr/local/share/doc/fmg"
 cp "$UNIVERSAL_BIN" "${PKG_ROOT}/usr/local/bin/fmg"
 chmod 755 "${PKG_ROOT}/usr/local/bin/fmg"
 
-cp "${SCRIPT_DIR}/config.example.yaml" "${PKG_ROOT}/usr/local/share/fmg/config.example.yaml"
-cp "${SCRIPT_DIR}/.env.example" "${PKG_ROOT}/usr/local/share/fmg/.env.example"
-cp "${SCRIPT_DIR}/start.sh" "${PKG_ROOT}/usr/local/share/fmg/start.sh" 2>/dev/null || true
+if [ -d "${SCRIPT_DIR}/web-app" ]; then
+    cp -R "${SCRIPT_DIR}/web-app" "${PKG_ROOT}/usr/local/share/fmg/web-app"
+    echo "  -> Copied web-app to /usr/local/share/fmg/"
+fi
+
 
 cat > "${PKG_ROOT}/usr/local/share/doc/fmg/README.txt" << 'README'
 Free Model Gateway (FMG)
@@ -129,10 +166,9 @@ Free Model Gateway (FMG)
 Installation complete!
 
 Quick Start:
-1. Copy config template: cp /usr/local/share/fmg/config.example.yaml ~/.fmg/config.yaml
-2. Set up environment:   cp /usr/local/share/fmg/.env.example ~/.fmg/.env
-3. Edit API keys:        vim ~/.fmg/.env
-4. Start gateway:        fmg -c ~/.fmg/config.yaml
+1. Start gateway:        fmg
+2. Open Dashboard:       http://localhost:10086
+3. Configure providers:  Use the Dashboard Settings page
 
 Or use the app bundle:   Open "Free Model Gateway.app" in Applications
 
@@ -205,12 +241,9 @@ cat > "${PKG_DIR}/conclusion.rtf" << 'CONCLUSION'
 \par - Templates: /usr/local/share/fmg/\
 \par \
 \par Next steps:\
-\par 1. Open Terminal\
-\par 2. mkdir -p ~/.fmg\
-\par 3. cp /usr/local/share/fmg/config.example.yaml ~/.fmg/config.yaml\
-\par 4. cp /usr/local/share/fmg/.env.example ~/.fmg/.env\
-\par 5. Edit ~/.fmg/.env with your API keys\
-\par 6. fmg -c ~/.fmg/config.yaml\
+\par 1. Start gateway: fmg\
+\par 2. Open Dashboard: http://localhost:10086\
+\par 3. Configure providers via Dashboard Settings\
 \par \
 \par Or open the Free Model Gateway app from Applications.\
 \par \
@@ -230,19 +263,9 @@ rm "$COMPONENT_PKG"
 echo "  -> Created: ${PKG_FILE}"
 echo ""
 
-SIGN_IDENTITY="${1:-}"
-if [ -n "${SIGN_IDENTITY:-}" ] && [ "$SIGN_IDENTITY" != "--sign" ]; then
-    echo ">>> Signing with identity: $SIGN_IDENTITY"
-    codesign --force --options runtime --sign "$SIGN_IDENTITY" \
-        --entitlements "${SCRIPT_DIR}/entitlements.plist" \
-        "${APP_BUNDLE}" 2>/dev/null || \
-    codesign --force --sign "$SIGN_IDENTITY" "${APP_BUNDLE}" 2>/dev/null || \
-    echo "  -> Warning: codesign failed (identity may not exist)"
-    
-    productsign --sign "$SIGN_IDENTITY" "$PKG_FILE" "${PKG_FILE}.signed" 2>/dev/null && \
-        mv "${PKG_FILE}.signed" "$PKG_FILE" || \
-        echo "  -> Warning: productsign failed"
-fi
+echo ">>> Applying ad-hoc signature..."
+codesign --force --deep --sign - "${APP_BUNDLE}" 2>/dev/null || \
+    echo "  -> Warning: ad-hoc codesign failed"
 
 echo ">>> Creating .dmg disk image..."
 
@@ -258,16 +281,12 @@ Free Model Gateway (FMG)
 
 1. Drag "Free Model Gateway.app" to Applications
 2. Open from Applications
-3. On first launch, it creates config in ~/.fmg/
-4. Edit ~/.fmg/.env with your API keys
-5. Click the tray icon to open Dashboard, start/stop service
-6. Open http://localhost:10086 in your browser
+3. On first launch, it creates ~/.fmg/ directory
+4. Click the tray icon to open Dashboard, start/stop service
+5. Open http://localhost:10086 in your browser
 
 Dashboard: http://localhost:10086
 API:      http://localhost:10086/v1/chat/completions
-
-For manual control:
-  fmg -c ~/.fmg/config.yaml
 README
 
 DMG_FILE="${DIST_DIR}/fmg-${VERSION}-macos.dmg"
@@ -276,7 +295,6 @@ hdiutil create \
     -volname "Free Model Gateway ${VERSION}" \
     -fs HFS+ \
     -format UDZO \
-    -size 50m \
     "$DMG_FILE" 2>/dev/null || \
 hdiutil create \
     -srcfolder "${DMG_LAYOUT}" \

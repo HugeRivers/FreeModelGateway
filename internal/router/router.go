@@ -7,8 +7,11 @@ import (
 
 	"github.com/free-model-gateway/fmg/internal/config"
 	"github.com/free-model-gateway/fmg/internal/cooldown"
+	"github.com/free-model-gateway/fmg/internal/health"
 	"github.com/free-model-gateway/fmg/internal/model"
+	"github.com/free-model-gateway/fmg/internal/provider"
 	"github.com/free-model-gateway/fmg/internal/proxy"
+	"github.com/free-model-gateway/fmg/internal/ratelimit"
 	"github.com/free-model-gateway/fmg/internal/stats"
 	"github.com/sirupsen/logrus"
 )
@@ -20,20 +23,23 @@ type Result struct {
 	FallbackChain []string
 	Retries       int
 	Latency       time.Duration
-	Usage         *proxy.Usage
+	Usage         *provider.Usage
 	Error         error
 	ErrorStatus   int
 }
 
 type Router struct {
-	pool        *model.Pool
-	strategy    Strategy
-	cooldownMgr *cooldown.Manager
-	stats       *stats.Collector
-	forwarder   *proxy.Forwarder
-	log         *logrus.Logger
-	maxRetries  int
-	retryDelay  time.Duration
+	pool          *model.Pool
+	strategy      Strategy
+	cooldownMgr   *cooldown.Manager
+	healthTracker *health.Tracker
+	limiter       *ratelimit.Limiter
+	stats         *stats.Collector
+	forwarder     *proxy.Forwarder
+	sticky        *StickySession
+	log           *logrus.Logger
+	maxRetries    int
+	retryDelay    time.Duration
 
 	forcedMu       sync.RWMutex
 	forcedModelKey string // "providerID:modelID" or empty = auto
@@ -46,15 +52,18 @@ type Router struct {
 	lastUsedName  string
 }
 
-func NewRouter(pool *model.Pool, mgr *cooldown.Manager, sc *stats.Collector, fw *proxy.Forwarder, stratCfg config.StrategyConfig, gwCfg config.GatewayConfig, log *logrus.Logger) *Router {
+func NewRouter(pool *model.Pool, mgr *cooldown.Manager, ht *health.Tracker, limiter *ratelimit.Limiter, sc *stats.Collector, fw *proxy.Forwarder, stratCfg config.StrategyConfig, gwCfg config.GatewayConfig, log *logrus.Logger) *Router {
 	r := &Router{
-		pool:        pool,
-		cooldownMgr: mgr,
-		stats:       sc,
-		forwarder:   fw,
-		log:         log,
-		maxRetries:  gwCfg.MaxRetries,
-		retryDelay:  time.Duration(gwCfg.RetryDelayMs) * time.Millisecond,
+		pool:          pool,
+		cooldownMgr:   mgr,
+		healthTracker: ht,
+		limiter:       limiter,
+		stats:         sc,
+		forwarder:     fw,
+		sticky:        NewStickySession(),
+		log:           log,
+		maxRetries:    gwCfg.MaxRetries,
+		retryDelay:    time.Duration(gwCfg.RetryDelayMs) * time.Millisecond,
 	}
 	r.SetStrategy(stratCfg.Mode)
 	return r
@@ -62,20 +71,20 @@ func NewRouter(pool *model.Pool, mgr *cooldown.Manager, sc *stats.Collector, fw 
 
 func (r *Router) SetStrategy(mode string) {
 	switch mode {
-	case "round-robin":
-		r.strategy = NewRoundRobinStrategy()
-	case "weighted-rr":
-		r.strategy = NewWeightedRRStrategy()
-	case "random":
-		r.strategy = NewRandomStrategy()
+	case "smartest":
+		r.strategy = NewSmartestStrategy()
+	case "fastest":
+		r.strategy = NewFastestStrategy()
+	case "reliable":
+		r.strategy = NewReliableStrategy()
 	default:
-		r.strategy = NewPriorityStrategy()
+		r.strategy = NewBalancedStrategy()
 	}
 }
 
 func (r *Router) StrategyName() string {
 	if r.strategy == nil {
-		return "priority"
+		return "balanced"
 	}
 	return r.strategy.Name()
 }
@@ -129,8 +138,20 @@ func (r *Router) RecordLastUsed(providerID, modelID, modelName string) {
 	r.lastUsedName = modelName
 }
 
+func (r *Router) ClearLastUsed() {
+	r.lastUsedMu.Lock()
+	defer r.lastUsedMu.Unlock()
+	r.lastUsedProv = ""
+	r.lastUsedModel = ""
+	r.lastUsedName = ""
+}
+
 func (r *Router) LastUsedModel() (string, string, string) {
 	r.lastUsedMu.RLock()
 	defer r.lastUsedMu.RUnlock()
 	return r.lastUsedProv, r.lastUsedModel, r.lastUsedName
+}
+
+func (r *Router) AvailableModels() []*model.BackendModel {
+	return r.pool.Available()
 }

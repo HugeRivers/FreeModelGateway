@@ -6,4 +6,5 @@ const (
 	StatusHealthy   Status = "healthy"
 	StatusCooldown  Status = "cooldown"
 	StatusExhausted Status = "exhausted"
+	StatusInvalid   Status = "invalid"
 )

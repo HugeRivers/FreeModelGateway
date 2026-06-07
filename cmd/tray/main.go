@@ -82,25 +82,6 @@ func onExit() {
 
 func initHome() {
 	_ = appdir.EnsureAll()
-
-	exe, _ := os.Executable()
-	res := filepath.Join(filepath.Dir(exe), "..", "Resources")
-
-	cfg := appdir.ConfigFile()
-	if _, err := os.Stat(cfg); os.IsNotExist(err) {
-		src := filepath.Join(res, "config.yaml")
-		if data, err := os.ReadFile(src); err == nil {
-			_ = os.WriteFile(cfg, data, 0640)
-		}
-	}
-
-	env := appdir.EnvFile()
-	if _, err := os.Stat(env); os.IsNotExist(err) {
-		src := filepath.Join(res, ".env")
-		if data, err := os.ReadFile(src); err == nil {
-			_ = os.WriteFile(env, data, 0640)
-		}
-	}
 }
 
 func startService() {
@@ -112,9 +93,13 @@ func startService() {
 	}
 
 	exe, _ := os.Executable()
-	fmgBin := filepath.Join(filepath.Dir(exe), "fmg")
+	exeDir := filepath.Dir(exe)
+	fmgBin := filepath.Join(exeDir, "fmg")
 
-	fmgCmd = exec.Command(fmgBin, "-c", appdir.ConfigFile())
+	resourcesDir := filepath.Join(exeDir, "..", "Resources")
+	webAppPath := filepath.Join(resourcesDir, "web-app")
+
+	fmgCmd = exec.Command(fmgBin, "-web-app", webAppPath)
 	fmgCmd.Stdout = os.Stdout
 	fmgCmd.Stderr = os.Stderr
 

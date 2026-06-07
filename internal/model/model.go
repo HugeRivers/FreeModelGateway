@@ -50,17 +50,14 @@ func (r *RingBuffer) Avg() time.Duration {
 }
 
 type BackendModel struct {
-	ProviderID    string
-	ProviderName  string
-	ModelID       string
-	ModelName     string
-	BaseURL       string
-	APIKey        string
-	Priority      int
-	Weight        int
-	ContextWindow int
-	OutputLimit   int
-	ExtraHeaders  map[string]string
+	ProviderID   string
+	ProviderName string
+	ModelID      string
+	ModelName    string
+	BaseURL      string
+	APIKey       string
+	APIFormat    string
+	ExtraHeaders map[string]string
 
 	mu             sync.RWMutex
 	Status         Status
@@ -85,10 +82,7 @@ func NewBackendModel(p config.ProviderConfig, m config.ModelConfig) *BackendMode
 		ModelName:      m.Name,
 		BaseURL:        p.BaseURL,
 		APIKey:         p.APIKey,
-		Priority:       p.Priority,
-		Weight:         p.Weight,
-		ContextWindow:  m.ContextWindow,
-		OutputLimit:    m.OutputLimit,
+		APIFormat:      p.APIFormat,
 		ExtraHeaders:   p.Headers,
 		Status:         StatusHealthy,
 		CreatedAt:      time.Now(),
@@ -137,6 +131,14 @@ func (m *BackendModel) MarkFailure(err string) {
 	m.LastUsedAt = time.Now()
 }
 
+func (m *BackendModel) MarkKeyInvalid(err string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Status = StatusInvalid
+	m.LastError = err
+	m.LastUsedAt = time.Now()
+}
+
 func (m *BackendModel) EnterCooldown(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -147,6 +149,9 @@ func (m *BackendModel) EnterCooldown(d time.Duration) {
 func (m *BackendModel) Recover() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.Status == StatusInvalid {
+		return
+	}
 	m.Status = StatusHealthy
 	m.CooldownUntil = time.Time{}
 	m.ConsecErrors = 0
@@ -177,13 +182,10 @@ func (m *BackendModel) ToAPIModel() map[string]interface{} {
 		stats["success_rate"] = 1.0
 	}
 	return map[string]interface{}{
-		"id":             m.ModelID,
-		"object":         "model",
-		"owned_by":       m.ProviderName,
-		"status":         string(m.Status),
-		"priority":       m.Priority,
-		"context_window": m.ContextWindow,
-		"output_limit":   m.OutputLimit,
-		"statistics":     stats,
+		"id":         m.ModelID,
+		"object":     "model",
+		"owned_by":   m.ProviderName,
+		"status":     string(m.Status),
+		"statistics": stats,
 	}
 }

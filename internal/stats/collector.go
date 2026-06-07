@@ -10,11 +10,11 @@ import (
 )
 
 type ModelStats struct {
-	ProviderID    string  `json:"provider_id"`
-	ProviderName  string  `json:"provider_name"`
-	ModelID       string  `json:"model_id"`
-	ModelName     string  `json:"model_name"`
-	Priority      int     `json:"priority"`
+	ProviderID   string `json:"provider_id"`
+	ProviderName string `json:"provider_name"`
+	ModelID      string `json:"model_id"`
+	ModelName    string `json:"model_name"`
+
 	Status        string  `json:"status"`
 	TotalRequests int64   `json:"total_requests"`
 	SuccessCount  int64   `json:"success_count"`
@@ -108,10 +108,11 @@ func (c *Collector) Snapshot() Stats {
 			errCount += db.ErrorCount
 			inTok += db.InputTokens
 			outTok += db.OutputTokens
+			dbAvgLat := int64(db.AvgLatencyMs)
 			if totalReq > 0 {
-				avgLat = ((m.AvgLatencyMs() * m.TotalRequests) + (db.AvgLatencyMs * (db.SuccessCount + db.ErrorCount))) / totalReq
+				avgLat = ((m.AvgLatencyMs() * m.TotalRequests) + (dbAvgLat * (db.SuccessCount + db.ErrorCount))) / totalReq
 			} else {
-				avgLat = db.AvgLatencyMs
+				avgLat = dbAvgLat
 			}
 		}
 
@@ -126,11 +127,11 @@ func (c *Collector) Snapshot() Stats {
 			rate = 1.0
 		}
 		out.Models = append(out.Models, ModelStats{
-			ProviderID:    m.ProviderID,
-			ProviderName:  m.ProviderName,
-			ModelID:       m.ModelID,
-			ModelName:     m.ModelName,
-			Priority:      m.Priority,
+			ProviderID:   m.ProviderID,
+			ProviderName: m.ProviderName,
+			ModelID:      m.ModelID,
+			ModelName:    m.ModelName,
+
 			Status:        string(m.Status),
 			TotalRequests: totalReq,
 			SuccessCount:  succCount,

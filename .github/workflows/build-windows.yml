@@ -1,0 +1,51 @@
+name: Build Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build fmg binary
+        run: |
+          go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o dist/fmg.exe ./cmd/fmg/
+
+      - name: Build tray app
+        run: |
+          go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o dist/fmg-tray.exe ./cmd/tray/
+
+      - name: Copy assets
+        run: |
+          mkdir -p dist/assets
+          cp cmd/tray/assets/*.png dist/assets/
+
+      - name: Create start script
+        run: |
+          echo '@echo off' > dist/start.bat
+          echo 'cd /d "%~dp0"' >> dist/start.bat
+          echo 'start "" "fmg-tray.exe"' >> dist/start.bat
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmg-windows
+          path: dist/*
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          draft: false
+          prerelease: false

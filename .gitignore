@@ -13,8 +13,6 @@ fmg.pid
 
 # Config (secrets)
 .env
-config.yaml
-
 # Go
 *.test
 *.out
@@ -30,3 +28,5 @@ vendor/
 # OS
 .DS_Store
 Thumbs.db
+.sisyphus
+.vscode

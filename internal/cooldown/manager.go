@@ -56,17 +56,31 @@ func NewManager(pool *model.Pool, baseSeconds, maxSeconds int, log *logrus.Logge
 	}
 }
 
-// EnterCooldown 把 backend 置入冷却，并在 duration 后自动恢复。
+// EnterCooldown 把 backend 置入冷却，duration 由指数退避决定，
+// 并在 duration 后自动调用 Recover。
 // reason 用于日志（"429 rate limited" / "consecutive errors" / 任意字符串）。
-//
-// 注意：先 Stop 老 timer，再 AfterFunc 新 timer，**这是必须的** —— 否则
-// "老 timer 先到时把刚延长的冷却提前放出来"，表现就是 cooldown 实际时长比
-// 预期的短。
 func (m *Manager) EnterCooldown(backend *model.BackendModel, reason string) {
 	if backend == nil {
 		return
 	}
-	duration := m.calculateDuration(backend)
+	m.enterCooldown(backend, m.calculateDuration(backend), reason)
+}
+
+// EnterCooldownWithDuration 把 backend 置入冷却，使用显式指定的 duration，
+// 并在 duration 后自动调用 Recover。
+// 用于根据错误类型设置分级冷却（如 429 RPM → 90s，429 RPD → 递增冷却）。
+func (m *Manager) EnterCooldownWithDuration(backend *model.BackendModel, duration time.Duration, reason string) {
+	if backend == nil {
+		return
+	}
+	m.enterCooldown(backend, duration, reason)
+}
+
+// enterCooldown 是内部实现，供 EnterCooldown 和 EnterCooldownWithDuration 共用。
+// 注意：先 Stop 老 timer，再 AfterFunc 新 timer，**这是必须的** —— 否则
+// "老 timer 先到时把刚延长的冷却提前放出来"，表现就是 cooldown 实际时长比
+// 预期的短。
+func (m *Manager) enterCooldown(backend *model.BackendModel, duration time.Duration, reason string) {
 	backend.EnterCooldown(duration)
 
 	m.mu.Lock()
