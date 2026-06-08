@@ -26,22 +26,22 @@ const ProvidersView = {
         const builtinProviders = {
             'opencode-zen': {
                 name: 'OpenCode Zen',
-                base_url: 'https://opencode.ai/zen/v1/chat/completions',
+                base_url: 'https://opencode.ai/zen/v1',
                 api_format: 'openai-compatible'
             },
             'openrouter': {
                 name: 'OpenRouter',
-                base_url: 'https://openrouter.ai/api/v1/chat/completions',
+                base_url: 'https://openrouter.ai/api/v1',
                 api_format: 'openai-compatible'
             },
             'aihubmix': {
                 name: 'AIHubMix',
-                base_url: 'https://aihubmix.com/v1/chat/completions',
+                base_url: 'https://aihubmix.com/v1',
                 api_format: 'openai-compatible'
             },
             'zenmux': {
                 name: 'ZenMux',
-                base_url: 'https://zenmux.ai/api/v1/chat/completions',
+                base_url: 'https://zenmux.ai/api/v1',
                 api_format: 'openai-compatible'
             },
 
