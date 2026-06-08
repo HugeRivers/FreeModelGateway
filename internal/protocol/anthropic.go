@@ -7,6 +7,15 @@ import (
 
 type Content json.RawMessage
 
+func (c *Content) UnmarshalJSON(data []byte) error {
+	*c = append((*c)[0:0], data...)
+	return nil
+}
+
+func (c Content) MarshalJSON() ([]byte, error) {
+	return c, nil
+}
+
 func StringContent(s string) Content {
 	b, _ := json.Marshal(s)
 	return Content(b)
