@@ -1,14 +1,26 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/free-model-gateway/fmg/internal/config"
 	"github.com/free-model-gateway/fmg/internal/store"
 	"github.com/gin-gonic/gin"
 )
+
+func (d *DashboardHandler) reloadConfig(ctx context.Context) {
+	if d.store == nil || d.reloader == nil {
+		return
+	}
+	cfg, err := config.LoadConfigFromDB(ctx, d.store, d.reloader.Current())
+	if err == nil {
+		d.reloader.Reload(cfg)
+	}
+}
 
 func (d *DashboardHandler) ListProvidersAPI(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -152,6 +164,7 @@ func (d *DashboardHandler) UpdateProviderAPI(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		d.reloadConfig(c.Request.Context())
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 		return
 	}
@@ -175,6 +188,7 @@ func (d *DashboardHandler) DeleteProviderAPI(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	d.reloadConfig(c.Request.Context())
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -216,6 +230,7 @@ func (d *DashboardHandler) CreateModelAPI(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	d.reloadConfig(c.Request.Context())
 	c.JSON(http.StatusOK, gin.H{"id": id, "ok": true})
 }
 
@@ -255,6 +270,7 @@ func (d *DashboardHandler) UpdateModelAPI(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	d.reloadConfig(c.Request.Context())
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -264,5 +280,6 @@ func (d *DashboardHandler) DeleteModelAPI(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	d.reloadConfig(c.Request.Context())
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/free-model-gateway/fmg/internal/model"
@@ -23,13 +24,21 @@ func NewOpenAIResponsesAdapter(client *http.Client, version string) *OpenAIRespo
 	return &OpenAIResponsesAdapter{client: client, version: version}
 }
 
+func resolveResponsesURL(baseURL string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(baseURL, "/responses") {
+		return baseURL
+	}
+	return baseURL + "/responses"
+}
+
 func (a *OpenAIResponsesAdapter) Forward(ctx context.Context, backend *model.BackendModel, body []byte) (*ForwardResult, error) {
 	respBody, err := openAIToResponsesRequest(body)
 	if err != nil {
 		return nil, fmt.Errorf("translate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(respBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveResponsesURL(backend.BaseURL), bytes.NewReader(respBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -88,7 +97,7 @@ func (a *OpenAIResponsesAdapter) ForwardStream(ctx context.Context, backend *mod
 		return nil, fmt.Errorf("translate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(respBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveResponsesURL(backend.BaseURL), bytes.NewReader(respBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

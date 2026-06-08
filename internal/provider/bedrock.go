@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/free-model-gateway/fmg/internal/model"
@@ -23,13 +24,21 @@ func NewBedrockAdapter(client *http.Client, version string) *BedrockAdapter {
 	return &BedrockAdapter{client: client, version: version}
 }
 
+func resolveBedrockURL(baseURL, modelID string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if strings.Contains(baseURL, "/model/") {
+		return baseURL
+	}
+	return baseURL + "/model/" + modelID + "/converse"
+}
+
 func (a *BedrockAdapter) Forward(ctx context.Context, backend *model.BackendModel, body []byte) (*ForwardResult, error) {
 	bedrockBody, err := openAIToBedrockRequest(body)
 	if err != nil {
 		return nil, fmt.Errorf("translate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(bedrockBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveBedrockURL(backend.BaseURL, backend.ModelID), bytes.NewReader(bedrockBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -88,7 +97,7 @@ func (a *BedrockAdapter) ForwardStream(ctx context.Context, backend *model.Backe
 		return nil, fmt.Errorf("translate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(bedrockBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveBedrockURL(backend.BaseURL, backend.ModelID), bytes.NewReader(bedrockBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -120,7 +129,7 @@ func (a *BedrockAdapter) ForwardStream(ctx context.Context, backend *model.Backe
 }
 
 func (a *BedrockAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, resolveBedrockURL(backend.BaseURL, backend.ModelID), nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}

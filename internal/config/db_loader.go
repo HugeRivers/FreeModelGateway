@@ -14,14 +14,14 @@ var BuiltinProviderTemplates = []store.ProviderTemplate{
 	{
 		ID:        "opencode-zen",
 		Name:      "OpenCode Zen",
-		BaseURL:   "https://opencode.ai/zen/v1/chat/completions",
+		BaseURL:   "https://opencode.ai/zen/v1",
 		APIFormat: APIFormatOpenAICompatible,
 		APIKeyEnv: "OPENCODE_API_KEY",
 	},
 	{
 		ID:        "openrouter",
 		Name:      "OpenRouter",
-		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		BaseURL:   "https://openrouter.ai/api/v1",
 		APIFormat: APIFormatOpenAICompatible,
 		APIKeyEnv: "OPENROUTER_API_KEY",
 		DefaultHeaders: mustJSON(map[string]string{
@@ -32,14 +32,14 @@ var BuiltinProviderTemplates = []store.ProviderTemplate{
 	{
 		ID:        "aihubmix",
 		Name:      "AIHubMix",
-		BaseURL:   "https://aihubmix.com/v1/chat/completions",
+		BaseURL:   "https://aihubmix.com/v1",
 		APIFormat: APIFormatOpenAICompatible,
 		APIKeyEnv: "AIHUBMIX_API_KEY",
 	},
 	{
 		ID:        "zenmux",
 		Name:      "ZenMux",
-		BaseURL:   "https://zenmux.ai/api/v1/chat/completions",
+		BaseURL:   "https://zenmux.ai/api/v1",
 		APIFormat: APIFormatOpenAICompatible,
 		APIKeyEnv: "ZENMUX_API_KEY",
 	},

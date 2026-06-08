@@ -25,6 +25,17 @@ func NewAnthropicAdapter(client *http.Client, version string) *AnthropicAdapter 
 	return &AnthropicAdapter{client: client, version: version}
 }
 
+func resolveAnthropicURL(baseURL string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if strings.Contains(baseURL, "/messages") {
+		return baseURL
+	}
+	if strings.HasSuffix(baseURL, "/v1") {
+		return baseURL + "/messages"
+	}
+	return baseURL + "/v1/messages"
+}
+
 func (a *AnthropicAdapter) Forward(ctx context.Context, backend *model.BackendModel, body []byte) (*ForwardResult, error) {
 	rewritten, err := rewriteModel(body, backend.ModelID)
 	if err != nil {
@@ -35,7 +46,7 @@ func (a *AnthropicAdapter) Forward(ctx context.Context, backend *model.BackendMo
 		return nil, fmt.Errorf("translate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(anthroBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveAnthropicURL(backend.BaseURL), bytes.NewReader(anthroBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -95,7 +106,7 @@ func (a *AnthropicAdapter) ForwardStream(ctx context.Context, backend *model.Bac
 		return nil, fmt.Errorf("translate request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(anthroBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveAnthropicURL(backend.BaseURL), bytes.NewReader(anthroBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -220,7 +231,7 @@ func (a *AnthropicAdapter) ForwardStream(ctx context.Context, backend *model.Bac
 }
 
 func (a *AnthropicAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, resolveAnthropicURL(backend.BaseURL), nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/free-model-gateway/fmg/internal/model"
@@ -22,13 +23,23 @@ func NewOpenAIAdapter(client *http.Client, version string) *OpenAIAdapter {
 	return &OpenAIAdapter{client: client, version: version}
 }
 
+// resolveOpenAIURL appends the chat completions endpoint if baseURL is a root path.
+// For backward compatibility, if baseURL already contains the endpoint, it's returned as-is.
+func resolveOpenAIURL(baseURL string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(baseURL, "/chat/completions") {
+		return baseURL
+	}
+	return baseURL + "/chat/completions"
+}
+
 func (a *OpenAIAdapter) Forward(ctx context.Context, backend *model.BackendModel, body []byte) (*ForwardResult, error) {
 	rewritten, err := rewriteModel(body, backend.ModelID)
 	if err != nil {
 		return nil, fmt.Errorf("rewrite body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(rewritten))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveOpenAIURL(backend.BaseURL), bytes.NewReader(rewritten))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -79,7 +90,7 @@ func (a *OpenAIAdapter) ForwardStream(ctx context.Context, backend *model.Backen
 		return nil, fmt.Errorf("rewrite body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(rewritten))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, resolveOpenAIURL(backend.BaseURL), bytes.NewReader(rewritten))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -112,7 +123,7 @@ func (a *OpenAIAdapter) ForwardStream(ctx context.Context, backend *model.Backen
 }
 
 func (a *OpenAIAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, resolveOpenAIURL(backend.BaseURL), nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}
