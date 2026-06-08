@@ -53,7 +53,7 @@ func geminiMessagesToOpenAI(req *GeminiRequest) []Message {
 		for _, p := range req.SystemInstruction.Parts {
 			text += p.Text
 		}
-		msgs = append(msgs, Message{Role: "system", Content: text})
+		msgs = append(msgs, Message{Role: "system", Content: StringContent(text)})
 	}
 	for _, c := range req.Contents {
 		role := c.Role
@@ -69,7 +69,7 @@ func geminiMessagesToOpenAI(req *GeminiRequest) []Message {
 		for _, p := range c.Parts {
 			text += p.Text
 		}
-		msgs = append(msgs, Message{Role: role, Content: text})
+		msgs = append(msgs, Message{Role: role, Content: StringContent(text)})
 	}
 	return msgs
 }
@@ -128,7 +128,7 @@ func OpenAIResponseToGemini(openAIResp []byte) ([]byte, error) {
 		gemini.Candidates = append(gemini.Candidates, GeminiCandidate{
 			Content: GeminiContent{
 				Role:  role,
-				Parts: []GeminiPart{{Text: c.Message.Content}},
+				Parts: []GeminiPart{{Text: c.Message.Content.String()}},
 			},
 			FinishReason: finish,
 		})
@@ -162,7 +162,7 @@ func OpenAIStreamChunkToGeminiSSE(data []byte) (events []string) {
 		"index": c.Index,
 		"content": map[string]interface{}{
 			"role":  "model",
-			"parts": []map[string]string{{"text": c.Delta.Content}},
+			"parts": []map[string]string{{"text": c.Delta.Content.String()}},
 		},
 	}
 	if c.FinishReason != nil {

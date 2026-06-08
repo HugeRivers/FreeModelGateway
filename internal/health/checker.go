@@ -145,12 +145,14 @@ func classifyError(err error) model.Status {
 	switch {
 	case strings.Contains(msg, "401"), strings.Contains(msg, "403"):
 		return model.StatusInvalid
+	case strings.Contains(msg, "429"):
+		return model.StatusExhausted
 	case strings.Contains(msg, "tls"), strings.Contains(msg, "certificate"):
 		return model.StatusExhausted
 	case strings.Contains(msg, "dns"), strings.Contains(msg, "notfound"):
 		return model.StatusExhausted
 	default:
-		return model.StatusExhausted
+		return model.StatusHealthy
 	}
 }
 

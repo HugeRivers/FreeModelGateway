@@ -231,7 +231,7 @@ func (a *AnthropicAdapter) ForwardStream(ctx context.Context, backend *model.Bac
 }
 
 func (a *AnthropicAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, resolveAnthropicURL(backend.BaseURL), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}
@@ -277,7 +277,7 @@ func openAIToAnthropicRequest(body []byte) ([]byte, error) {
 		}
 		anthro["messages"] = append(anthro["messages"].([]map[string]interface{}), map[string]interface{}{
 			"role":    role,
-			"content": m.Content,
+			"content": m.Content.String(),
 		})
 	}
 

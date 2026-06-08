@@ -149,13 +149,13 @@ func openAIToResponsesRequest(body []byte) ([]byte, error) {
 	var instructions string
 	for _, m := range openAI.Messages {
 		if m.Role == "system" {
-			instructions = m.Content
+			instructions = m.Content.String()
 			continue
 		}
 		msg, _ := json.Marshal(map[string]interface{}{
 			"type":    "message",
 			"role":    m.Role,
-			"content": m.Content,
+			"content": m.Content.String(),
 		})
 		input = append(input, msg)
 	}

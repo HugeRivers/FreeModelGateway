@@ -123,7 +123,7 @@ func (a *OpenAIAdapter) ForwardStream(ctx context.Context, backend *model.Backen
 }
 
 func (a *OpenAIAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, resolveOpenAIURL(backend.BaseURL), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}

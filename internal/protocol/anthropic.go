@@ -5,9 +5,41 @@ import (
 	"fmt"
 )
 
+type Content json.RawMessage
+
+func StringContent(s string) Content {
+	b, _ := json.Marshal(s)
+	return Content(b)
+}
+
+func (c Content) String() string {
+	if len(c) == 0 {
+		return ""
+	}
+	if c[0] == '"' {
+		var s string
+		_ = json.Unmarshal([]byte(c), &s)
+		return s
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(c), &blocks); err != nil {
+		return string(c)
+	}
+	var out string
+	for _, b := range blocks {
+		if b.Type == "text" {
+			out += b.Text
+		}
+	}
+	return out
+}
+
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string  `json:"role"`
+	Content Content `json:"content"`
 }
 
 type Choice struct {
@@ -63,10 +95,10 @@ type AnthroUsage struct {
 func anthropicMessagesToOpenAI(anthro *AnthroRequest) []Message {
 	msgs := make([]Message, 0, len(anthro.Messages)+1)
 	if anthro.System != "" {
-		msgs = append(msgs, Message{Role: "system", Content: anthro.System})
+		msgs = append(msgs, Message{Role: "system", Content: StringContent(anthro.System)})
 	}
 	for _, m := range anthro.Messages {
-		msgs = append(msgs, Message{Role: m.Role, Content: extractAnthroContent(m.Content)})
+		msgs = append(msgs, Message{Role: m.Role, Content: StringContent(extractAnthroContent(m.Content))})
 	}
 	return msgs
 }
@@ -151,7 +183,7 @@ func OpenAIResponseToAnthropic(openAIResp []byte) ([]byte, error) {
 
 	if len(raw.Choices) > 0 {
 		c := raw.Choices[0]
-		anthro.Content = append(anthro.Content, AnthroContent{Type: "text", Text: c.Message.Content})
+		anthro.Content = append(anthro.Content, AnthroContent{Type: "text", Text: c.Message.Content.String()})
 		switch c.FinishReason {
 		case "stop":
 			anthro.StopReason = "end_turn"
@@ -276,11 +308,11 @@ func OpenAIStreamChunkToAnthropicSSE(data []byte) (events []string) {
 		events = append(events, "event: content_block_start\ndata: "+string(blockData))
 	}
 
-	if c.Delta.Content != "" {
+	if c.Delta.Content.String() != "" {
 		deltaData, _ := json.Marshal(map[string]interface{}{
 			"type":  "content_block_delta",
 			"index": c.Index,
-			"delta": map[string]string{"type": "text_delta", "text": c.Delta.Content},
+			"delta": map[string]string{"type": "text_delta", "text": c.Delta.Content.String()},
 		})
 		events = append(events, "event: content_block_delta\ndata: "+string(deltaData))
 	}

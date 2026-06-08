@@ -129,11 +129,7 @@ func (a *GeminiAdapter) ForwardStream(ctx context.Context, backend *model.Backen
 }
 
 func (a *GeminiAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	url := buildGeminiURL(backend.BaseURL, backend.ModelID, false)
-	if !bytes.Contains([]byte(url), []byte("?")) {
-		url += "?key=" + backend.APIKey
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}
@@ -189,13 +185,13 @@ func openAIToGeminiRequest(body []byte) ([]byte, error) {
 			role = "model"
 		case "system":
 			gemini["systemInstruction"] = map[string]interface{}{
-				"parts": []map[string]string{{"text": m.Content}},
+				"parts": []map[string]string{{"text": m.Content.String()}},
 			}
 			continue
 		}
 		gemini["contents"] = append(gemini["contents"].([]map[string]interface{}), map[string]interface{}{
 			"role":  role,
-			"parts": []map[string]string{{"text": m.Content}},
+			"parts": []map[string]string{{"text": m.Content.String()}},
 		})
 	}
 

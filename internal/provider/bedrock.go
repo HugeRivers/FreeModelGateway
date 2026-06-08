@@ -129,7 +129,7 @@ func (a *BedrockAdapter) ForwardStream(ctx context.Context, backend *model.Backe
 }
 
 func (a *BedrockAdapter) Probe(ctx context.Context, backend *model.BackendModel) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, resolveBedrockURL(backend.BaseURL, backend.ModelID), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, backend.BaseURL, nil)
 	if err != nil {
 		return fmt.Errorf("probe build request: %w", err)
 	}
@@ -171,12 +171,12 @@ func openAIToBedrockRequest(body []byte) ([]byte, error) {
 			if _, ok := bedrock["system"]; !ok {
 				bedrock["system"] = []map[string]string{}
 			}
-			bedrock["system"] = append(bedrock["system"].([]map[string]string), map[string]string{"text": m.Content})
+			bedrock["system"] = append(bedrock["system"].([]map[string]string), map[string]string{"text": m.Content.String()})
 			continue
 		}
 		bedrock["messages"] = append(bedrock["messages"].([]map[string]interface{}), map[string]interface{}{
 			"role":    role,
-			"content": []map[string]string{{"text": m.Content}},
+			"content": []map[string]string{{"text": m.Content.String()}},
 		})
 	}
 

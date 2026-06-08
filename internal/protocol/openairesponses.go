@@ -41,7 +41,7 @@ func parseOAIRespInput(raw json.RawMessage) []Message {
 	if raw[0] == '"' {
 		var s string
 		_ = json.Unmarshal(raw, &s)
-		return []Message{{Role: "user", Content: s}}
+		return []Message{{Role: "user", Content: StringContent(s)}}
 	}
 	var msgs []Message
 	if err := json.Unmarshal(raw, &msgs); err != nil {
@@ -59,7 +59,7 @@ func parseOAIRespInput(raw json.RawMessage) []Message {
 					if role == "" {
 						role = "user"
 					}
-					msgs = append(msgs, Message{Role: role, Content: text})
+					msgs = append(msgs, Message{Role: role, Content: StringContent(text)})
 				}
 			}
 		}
@@ -74,7 +74,7 @@ func OpenAIResponsesRequestToOpenAI(body []byte) ([]byte, error) {
 	}
 	msgs := parseOAIRespInput(req.Input)
 	if req.Instructions != "" {
-		msgs = append([]Message{{Role: "system", Content: req.Instructions}}, msgs...)
+		msgs = append([]Message{{Role: "system", Content: StringContent(req.Instructions)}}, msgs...)
 	}
 	model := req.Model
 	if model == "" {
@@ -122,7 +122,7 @@ func OpenAIResponseToOpenAIResponses(openAIResp []byte) ([]byte, error) {
 			ID:      "msg_" + raw.ID,
 			Type:    "message",
 			Role:    "assistant",
-			Content: []OAIRespBlock{{Type: "output_text", Text: c.Message.Content}},
+			Content: []OAIRespBlock{{Type: "output_text", Text: c.Message.Content.String()}},
 			Status:  "completed",
 		}
 		resp["output"] = []OAIRespItem{item}
@@ -175,10 +175,10 @@ func OpenAIStreamChunkToOAIRespSSE(data []byte) (events []string) {
 		events = append(events, "event: response.content_part.added\ndata: "+string(cd))
 	}
 
-	if c.Delta.Content != "" {
+	if c.Delta.Content.String() != "" {
 		td, _ := json.Marshal(map[string]interface{}{
 			"type":  "response.output_text.delta",
-			"delta": c.Delta.Content,
+			"delta": c.Delta.Content.String(),
 		})
 		events = append(events, "event: response.output_text.delta\ndata: "+string(td))
 	}

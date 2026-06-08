@@ -51,7 +51,7 @@ type BedrockUsage struct {
 func bedrockMessagesToOpenAI(req *BedrockRequest) []Message {
 	msgs := make([]Message, 0, len(req.Messages)+1)
 	for _, s := range req.System {
-		msgs = append(msgs, Message{Role: "system", Content: s.Text})
+		msgs = append(msgs, Message{Role: "system", Content: StringContent(s.Text)})
 	}
 	for _, m := range req.Messages {
 		text := ""
@@ -65,7 +65,7 @@ func bedrockMessagesToOpenAI(req *BedrockRequest) []Message {
 		default:
 			role = "user"
 		}
-		msgs = append(msgs, Message{Role: role, Content: text})
+		msgs = append(msgs, Message{Role: role, Content: StringContent(text)})
 	}
 	return msgs
 }
@@ -116,7 +116,7 @@ func OpenAIResponseToBedrock(openAIResp []byte) ([]byte, error) {
 		resp.Output = &BedrockOutput{
 			Message: BedrockMessage{
 				Role:    "assistant",
-				Content: []BedrockContent{{Text: c.Message.Content}},
+				Content: []BedrockContent{{Text: c.Message.Content.String()}},
 			},
 		}
 		switch c.FinishReason {
@@ -161,9 +161,9 @@ func OpenAIStreamChunkToBedrockSSE(data []byte) (events []string) {
 		"contentBlockIndex": c.Index,
 	}
 
-	if c.Delta.Content != "" {
+	if c.Delta.Content.String() != "" {
 		chunkData["contentBlockDelta"] = map[string]interface{}{
-			"delta": map[string]string{"text": c.Delta.Content},
+			"delta": map[string]string{"text": c.Delta.Content.String()},
 		}
 	}
 
