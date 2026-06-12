@@ -284,6 +284,7 @@ tr:hover {
     border-radius: 4px;
     font-size: 12px;
     text-transform: uppercase;
+    position: relative;
 }
 
 .status-healthy {
@@ -299,6 +300,20 @@ tr:hover {
 .status-invalid {
     background: rgba(248, 81, 73, .15);
     color: var(--red);
+}
+
+.status-error-icon {
+    display: inline-block;
+    margin-left: 4px;
+    cursor: help;
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.85;
+    vertical-align: super;
+}
+
+.status-error-icon:hover {
+    opacity: 1;
 }
 
 .in-use {

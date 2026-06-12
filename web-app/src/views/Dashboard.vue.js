@@ -354,20 +354,25 @@ const DashboardView = {
             <tr v-else-if="models.length === 0">
               <td colspan="8" class="td-center">暂无模型</td>
             </tr>
-            <tr v-for="m in models" :key="m.model_id">
+            <tr v-for="m in models" :key="m.provider_id + ':' + m.model_id">
               <td><span class="provider-tag">{{ m.provider_name || m.provider_id }}</span></td>
               <td>
                 <span class="model-id">{{ m.model_id }}</span>
                 <span class="model-name">{{ m.model_name || '' }}</span>
               </td>
-              <td><span :class="'status-badge status-' + (m.status || 'unknown')">{{ m.status || 'unknown' }}</span></td>
+              <td>
+                <span :class="'status-badge status-' + (m.status || 'unknown')">
+                  {{ m.status || 'unknown' }}
+                  <span v-if="m.status === 'invalid' && m.last_error" class="status-error-icon" :title="m.last_error">&#9432;</span>
+                </span>
+              </td>
               <td>{{ fmt(m.total_requests) }}</td>
               <td>{{ m.success_rate != null ? (m.success_rate * 100).toFixed(1) + '%' : '--' }}</td>
               <td>{{ m.avg_latency_ms ? m.avg_latency_ms + 'ms' : '--' }}</td>
               <td>{{ fmt((m.input_tokens || 0) + (m.output_tokens || 0)) }}</td>
               <td>
-                <span v-if="forcedModel?.model_id === m.model_id" class="route-status manual">手动路由</span>
-                <span v-else-if="lastUsed?.model_id === m.model_id" class="route-status active">使用中</span>
+                <span v-if="forcedModel?.provider_id === m.provider_id && forcedModel?.model_id === m.model_id" class="route-status manual">手动路由</span>
+                <span v-else-if="lastUsed?.provider_id === m.provider_id && lastUsed?.model_id === m.model_id" class="route-status active">使用中</span>
                 <span v-else class="route-status auto">自动</span>
               </td>
             </tr>

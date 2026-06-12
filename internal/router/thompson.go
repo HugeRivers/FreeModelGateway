@@ -20,12 +20,26 @@ func (s *ThompsonStrategy) Select(ctx context.Context, candidates []*model.Backe
 		return nil, ErrNoCandidate
 	}
 
-	// For explicit model selection, respect it
+	// For explicit model selection, respect it but still score across all
+	// provider instances offering that model so multi-key setups load-balance.
 	if req != nil && req.Model != "" && req.Model != "auto" {
+		matched := candidates[:0]
 		for _, m := range candidates {
 			if m.ModelID == req.Model {
-				return m, nil
+				matched = append(matched, m)
 			}
+		}
+		if len(matched) > 0 {
+			best := matched[0]
+			bestScore := s.scorer.SampleScore(best)
+			for i := 1; i < len(matched); i++ {
+				score := s.scorer.SampleScore(matched[i])
+				if score > bestScore {
+					bestScore = score
+					best = matched[i]
+				}
+			}
+			return best, nil
 		}
 	}
 
