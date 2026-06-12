@@ -19,7 +19,7 @@ const ProvidersView = {
             {value: 'openai-compatible', label: 'OpenAI Chat Completions API'},
             {value: 'openai-responses', label: 'OpenAI Responses API'},
             {value: 'anthropic', label: 'Anthropic Messages API'},
-            {value: 'gemini', label: 'Anthropic Messages API'},
+            {value: 'gemini', label: 'Gemini Messages API'},
             {value: 'bedrock', label: 'Amazon Bedrock Converse API'}
         ];
 
